@@ -39,7 +39,14 @@ For efficiency, we will set a target lap time after a baseline pilot and before 
 For efficacy, we will compare frozen models after the same training budget. A faster lap will not count as an overall improvement if it comes with an unacceptable drop in valid-lap completion.
 
 ### Sub-Quests: Changes That Could Support the Main Goal
-TBD
+The following are candidate experiments, rather than separate project goals. We will begin with one and judge it by whether it supports the chosen main objective.
+| Experiment | Hypothesis | Controlled comparison | Connection to the main goal |
+| --- | --- | --- | --- |
+| **A. Adjust the reward** | A strong centerline penalty may help early stability but discourage faster racing lines. | Compare two centerline-penalty weights while holding the other reward terms and settings fixed. | Test whether the change reduces steps to the target or improves valid lap times. |
+| **B. Test the observation design** | Absolute coordinates may help the agent memorize one track, but may not be the most useful representation for learning efficient driving. | Compare the default observations with a version that masks absolute coordinates while preserving the network architecture. | Establish whether those coordinates help or hinder efficiency and efficacy on the original track. |
+| **C. Diagnose costly failures** | Repeated failures in particular sections may waste training interactions or limit lap-time improvement. | Analyze a baseline, identify one supported failure mechanism, and test one targeted change. | Reduce wasted interactions or address a bottleneck that prevents faster valid laps. |
+The observation ablation in B does not, by itself, test generalization. If its results justify further work, a later experiment could compare absolute coordinates with track-relative features such as lateral error, heading error, and upcoming path geometry.
+For C, we will separate driving-policy failures from infrastructure problems. Shared fixes to coordinates, resets, timing, or device handling will be applied to all conditions before the comparison.
 
 ### What Counts as a Successful Result?
 
