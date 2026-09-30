@@ -4,7 +4,7 @@ Semester Project for DSAN 6600: Deep Learning and Neural Networks
 
 We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implementation for Assetto Corsa, to test whether one small design change helps a racing agent learn faster or set faster valid laps.
 
-**Status:** This is a project proposal with a first look at the public data. We have not run our own training or evaluation yet. Items in parentheses mark decisions, evidence, or results we still need to fill in.
+**Status:** This is a project proposal with a first look at the public data and a short five-episode pilot run. We have not run a full training or evaluation yet. Items in parentheses mark decisions, evidence, or results we still need to fill in.
 
 ## 1. Research Goals and Scope
 
@@ -134,7 +134,7 @@ Downloading the public files and getting the simulator working are separate step
 
 Final field definitions, units, storage format, and exclusion rules: (To be added: link to the data dictionary and preprocessing rules)
 
-Actual collected volume: (To be added: numbers of sessions, episodes, and transitions, and recording duration)
+Actual collected volume: So far, we have episode-level summaries for 5 pilot episodes (5,000 environment steps; see Section 3). Whether the 5,000 underlying transitions were saved to a file still needs to be checked. (To be added: numbers of sessions, episodes, and transitions, and recording duration, for the main collection)
 
 ### Licensing and Checkpoints
 
@@ -178,6 +178,38 @@ The first row of the public data (rounded):
 
 Additional representative rows, covering a straight and a corner, with units and selection criteria: (To be added: a table of actual data samples)
 
+### Pilot Run: First Five Episodes
+
+To check that the training loop runs end to end, we started a new ACRL SAC run with `start_steps=10000` and ran it for five episodes (5,000 environment steps, about 2.7 minutes of wall-clock time). ACRL writes one summary row per episode to `progress.txt`. (To be added: car, track, and remaining configuration used for this run; code version; repository link to `progress.txt`)
+
+| Episode | Episode reward | Steps | Final progress | Net progress | Avg. speed (km/h) | Wall-clock time / logged step |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | -4,130 | 1,000 | 0.23% | 0.08% | 1.11 | 21 ms |
+| 2 | -3,482 | 1,000 | 0.43% | 0.28% | 1.77 | 35 ms |
+| 3 | -2,030 | 1,000 | 0.35% | 0.18% | 1.38 | 35 ms |
+| 4 | -2,617 | 1,000 | 0.40% | 0.24% | 1.77 | 34 ms |
+| 5 | -4,304 | 1,000 | 0.35% | 0.20% | 1.52 | 37 ms |
+
+Progress is a fraction of one lap. "Final progress" is ACRL's `EpDist`, the lap progress when the episode ended. "Net progress" is the average per-step change in progress times the number of steps. Forward and backward movement cancel out in this value, so it is not the total distance driven. Speed is the averaged observation value, which the [environment code](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/ac_environment.py) records in km/h without normalization. The units of the public `speed` column still need to be confirmed separately.
+
+**Log quality check:** The log has 5 rows and 17 columns, every value is finite, and `TotalSteps` increases by exactly 1,000 per episode. This only checks the episode summaries. It does not tell us anything about the quality of individual telemetry samples or transitions.
+
+**What the numbers show**
+
+- **All actions were random.** ACRL samples actions uniformly at random for the first 10,000 steps, so every action in this run was random. The networks were being updated during the run, but the policy was not yet choosing actions. Differences between episodes reflect random actions, starting states, and timing rather than learning, so episode 3's higher reward does not mean the policy improved. We treat this run as a preliminary random-action baseline. It comes from a single run, and a trained policy is not guaranteed to beat it.
+- **Progress was small.** Net progress was only 0.08–0.28% of a lap per episode.
+- **Every recorded step reward was negative.** The highest single-step reward across all five episodes was -0.49.
+- **Reward and progress were only loosely related.** Across the five episodes, average speed tracked net progress closely (r ≈ 0.97), while episode reward and net progress were weakly related (r ≈ 0.31). This is not surprising, since ACRL's active reward is computed from heading-error terms, distance from the centerline, and normalized speed, with no direct progress term. (The speed normalization happens only inside the reward; the observed speed in the table is still in km/h.) Five episodes are not enough to tell which term matters most, so we will log each reward component separately. This is directly relevant to experiment A.
+- **Progress sometimes decreased.** The minimum per-step change in progress was negative in every episode. The car may have rolled backward, or the progress value reported by the telemetry may fluctuate. We will need per-step data to tell which.
+
+**Artifacts in the log**
+
+- **`EpDist` is not distance driven.** It is the lap progress at the end of the episode. Working backward from the log, each episode appears to start about 0.15–0.16% into the lap, so `EpDist` overstates movement by about that much. This starting value is derived from the log, not measured right after reset. We use net progress instead. `DistHigh` is the running maximum of `EpDist`.
+- **The time column is not the control interval.** `EpTime` starts before the reset and also covers gradient updates and saving drive data and the model. Episode 1 took 21.5 ms per logged step, while episodes 2–5 averaged 35.1 ms. With `update_after=1000` and `update_every=50`, episode 1 made 50 update calls (all at its last step), while each later episode made 1,000. The extra update work is a likely reason for the gap. Measuring the actual control interval would require a timestamp for each action and observation.
+- **End reasons are not logged.** All five episodes stopped at exactly 1,000 steps, which is consistent with a time limit, but the log does not record why an episode ended. This is one reason our collection schema includes `end_reason`.
+
+**Next steps from the pilot:** continue a single uninterrupted training run past 10,000 cumulative steps so the policy chooses actions; log reward components, end reasons, and per-step timestamps; then plot progress and reward by episode as a learning curve. Restarting resets the step counter, and loading a saved model sets `start_steps=0` and creates a new replay buffer and optimizers, so any resumed training will be recorded as a separate run segment.
+
 ### Figures and Quality Checks to Complete
 
 The following analyses are planned but have not yet been completed.
@@ -188,6 +220,7 @@ The following analyses are planned but have not yet been completed.
 | Speed distribution or speed by track progress | (To be added: a plot with verified units and key observations) |
 | Sampling-interval distribution | (To be added: a plot and summary showing the frequency of delays) |
 | Section coverage | (To be added: sample counts by track section and an interpretation of coverage bias) |
+| Pilot progress and reward curves | (To be added: net progress and episode reward by episode; analyze as a learning curve once the run extends past the random-action phase) |
 | Data-quality table | (To be added: results for missing values, duplicates, NaNs, constant columns, non-monotonic timestamps, and timestamp alignment across files) |
 
 In continuous control, what matters is how well the data covers different states and actions, rather than class balance as in classification. A single lap can't tell us how robust a policy is to different driving styles, starting conditions, or failures, and thousands of consecutive rows from that lap are not thousands of independent attempts.
