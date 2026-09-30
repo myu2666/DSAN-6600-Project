@@ -184,7 +184,8 @@ Necessary fixes will be applied equally across conditions and documented. This k
 Relevant source files: [environment](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/ac_environment.py) and [networks](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/core.py).
 
 ## 4. Evaluation Plan
-TBD
+
+Each condition will receive the same number of training steps and follow the same update schedule. We will measure elapsed time separately, since equal step budgets do not guarantee identical runtimes.
 
 ### Metrics
 TBD
