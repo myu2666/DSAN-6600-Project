@@ -227,7 +227,14 @@ We will report individual seed results, variability, and representative failures
 We will start with [ACRL's MLP-based SAC implementation](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/sac.py). Changes will be guided by what is needed to test the research question. Larger models or new input types can be considered if the initial experiments establish a reason to use them.
 
 ## Next Check-In
-TBD
+
+- [ ] Select one research question and state a hypothesis before the experiment.
+- [ ] Obtain an actual data sample and document its fields.
+- [ ] Prepare representative trajectories, time series, summary statistics, and error checks.
+- [ ] Define comparison conditions, a training budget, metrics, and a validation/test separation plan.
+- [ ] Complete a short SAC run and document the problems it reveals.
+
+We will set the scale of the main experiment after the pilot. By the end of the semester, we aim to show what we changed, what difference it made, and how far the evidence allows us to explain the result.
 
 
 
