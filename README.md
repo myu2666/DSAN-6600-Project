@@ -286,26 +286,3 @@ We will build on the existing [SAC implementation](https://github.com/Jurredr/AC
 Architecture source: [core.py](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/core.py).
 
 For Check-In 2, we aim to have a working baseline and one comparison condition trained on a small, equal budget, with real learning curves or a documented account of how the agent fails. A non-neural probe is optional, and we don't plan to use a larger architecture.
-
-## Milestones and Deliverables
-
-| Stage | Deliverable | Deadline |
-| --- | --- | --- |
-| Access and audit | Simulator access evidence, sample records, EDA, common code checks | (To be added: date) |
-| Baseline pilot | Throughput, valid-lap feasibility, fixed objective and success criteria | (To be added: date) |
-| Check-In 2 | Baseline and one intervention, neural configuration, preliminary results | (To be added: date) |
-| Main comparison | Independent-seed runs under the agreed budget | (To be added: date) |
-| Final evaluation | Frozen test results, uncertainty, failure analysis, limitations | (To be added: date) |
-
-### Submission Checklist
-
-- [ ] Select the primary objective and first intervention.
-- [ ] Define success thresholds and freeze the evaluation protocol.
-- [ ] Document the chosen car, track, hardware, and compute budget.
-- [ ] Demonstrate simulator access with a saved transition sample.
-- [ ] Add representative public-data samples, plots, and quality checks.
-- [ ] Document shared implementation fixes and code versions.
-- [ ] Specify the CI2 neural experiment and hyperparameters.
-- [ ] Keep completed findings separate from planned work.
-
-In the final report, we will describe what we changed, whether it made learning faster or laps quicker, and how far our evidence actually goes.
