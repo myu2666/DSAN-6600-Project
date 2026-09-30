@@ -168,7 +168,20 @@ Sources: [lap records](https://github.com/Jurredr/ACRL/blob/master/track_data/la
 | **C. Failures** | Classify corner-entry departures, repeated steering oscillations, stopping, and getting stuck. Record reset failures and invalid observations separately. |
 
 ### Checks Before Experimentation
-TBD
+
+Driving failures need to be distinguished from errors in the experimental setup. A communication delay or incorrect coordinate calculation should not be interpreted as a poor driving decision.
+
+Before comparing models, we will check:
+
+- Coordinate handling
+- Possible NaNs at zero speed
+- CPU/GPU handling
+- Checkpoint saving and loading
+- Reset behavior and control timing
+
+Necessary fixes will be applied equally across conditions and documented. This keeps shared infrastructure changes separate from the intervention being studied.
+
+Relevant source files: [environment](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/ac_environment.py) and [networks](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/core.py).
 
 ## 4. Evaluation Plan
 TBD
