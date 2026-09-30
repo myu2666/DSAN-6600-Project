@@ -188,13 +188,38 @@ Relevant source files: [environment](https://github.com/Jurredr/ACRL/blob/master
 Each condition will receive the same number of training steps and follow the same update schedule. We will measure elapsed time separately, since equal step budgets do not guarantee identical runtimes.
 
 ### Metrics
-TBD
+
+| Category | Measures |
+| --- | --- |
+| Main outcome | Rate of reaching a predefined point or completing a valid lap (1 sector -> 2 sectors -> 1 complete lap) |
+| Failures | Progress before failure, off-track events (frquent failure points on the lap course), and time spent off track |
+| Control behavior | Magnitude and frequency of steering changes |
+| Learning efficiency | Environment steps and actual training time |
+| Driving speed | Lap times, once enough valid completions are available |
+
+We will define completion, failure, and off-track events before evaluation and keep those definitions consistent across conditions.
 
 ### Training, Validation, and Testing
-TBD
+
+Online reinforcement learning generates data through interaction. Instead of randomly splitting replay-buffer rows, we will separate:
+
+1. **Training runs** for learning the policy
+2. **Validation runs** for tuning settings and developing hypotheses
+3. **Final test runs** for reporting results
+
+The model will not learn during final testing. Any variation in starting conditions will be defined in advance.
+
+Where feasible, we will train each condition independently with **three different seeds**. If the budget allows fewer runs, we will describe the findings as exploratory. Repeatedly evaluating one model and independently training several models address different sources of uncertainty.
 
 ### Comparison Rules
-TBD
+
+- **A:** Change only the reward weight.
+- **B:** Preserve the network architecture and mask only the selected inputs. If normalization is used, apply training-derived statistics before masking.
+- **C:** Develop hypotheses from validation logs, then examine them using held-out records or new evaluation runs.
+
+Changing the reward function can change both the scale and meaning of cumulative reward. We will therefore judge performance using shared driving measures such as reaching rate and off-track duration.
+
+We will report individual seed results, variability, and representative failures alongside averages. We will distinguish observed differences from our explanations of what caused them.
 
 
 ## 5. Initial Neural Approach
