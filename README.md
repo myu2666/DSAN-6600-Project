@@ -160,7 +160,12 @@ The invalid flag indicates that the lap was not marked invalid. It does **not**,
 Sources: [lap records](https://github.com/Jurredr/ACRL/blob/master/track_data/lap.csv) and [vehicle records](https://github.com/Jurredr/ACRL/blob/master/track_data/car.csv).
 
 ### Analysis by Research Direction
-TBD
+
+| Option | Planned analysis |
+| --- | --- |
+| **A. Reward** | Inspect the size of each reward component and the relationships among centerline distance, speed, and progress. Check for stopping or excessively slow driving. |
+| **B. Inputs** | Compare progress and heading error by track section. Identify where masking coordinates causes particular difficulty. |
+| **C. Failures** | Classify corner-entry departures, repeated steering oscillations, stopping, and getting stuck. Record reset failures and invalid observations separately. |
 
 ### Checks Before Experimentation
 TBD
