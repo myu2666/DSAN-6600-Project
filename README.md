@@ -107,17 +107,17 @@ The files don't include steering or pedal inputs, rewards, or full state–actio
 - Local code version: (To be added: project commit or release)
 - Data snapshot and audit script/notebook: (To be added: file paths or links)
 
-### Simulator Access Status
+### Shared Implementation Fixes
+ 
+While setting up ACRL, we found several problems in the original code (upstream commit `ff1b5dd`) and fixed them before running any comparison. All experimental conditions will use the fixed code.
+ 
+**Coordinates and vectors** (`ac_environment.py`, `utils/track_spline.py`)
 
-Downloading the public files and getting the simulator working are separate steps. We won't call the data collection pipeline ready until the checks below pass.
-
-| Check | Status and evidence |
-| --- | --- |
-| Assetto Corsa runs with the selected car and track | (To be added: verification status and runtime environment) |
-| ACRL receives live telemetry | (To be added: sample log or verification result) |
-| Actions reach the game | (To be added: control-test results) |
-| Automatic reset works consistently | (To be added: repeated reset-test results) |
-| Complete transitions can be saved and loaded | (To be added: an actual sample file and confirmation that it can be read) |
+| Problem in the original | Our fix | Why it matters |
+| --- | --- | --- |
+| Heading error and distance from the centerline were computed from the car's world x and y coordinates. In Assetto Corsa, y is the vertical axis and the track lies in the x–z plane; the public position sample (-131.0, -0.4, -822.3) shows y staying close to zero. | Use x and z, matching the reference path. | Both values are observations and reward terms. With y, the agent was being told how far it was from the centerline using its height instead of its position on the track. |
+| The velocity used for heading error was built from `velocity[0]` and `velocity[1]`, which are the horizontal x and vertical y components. | Use `velocity[0]` and `velocity[2]` (x and z). | The heading error now compares the car's direction of travel on the track with the direction of the reference path. |
+| The heading calculation divided the path direction and the velocity by their lengths without checking for zero. A stopped car has zero velocity, so the result became NaN. | Return a heading error of 0 when the car is nearly stopped (speed below 1e-3) or the path direction is degenerate. | Every episode starts from a standstill, so this case came up at each reset, and NaN values could reach the replay buffer. One side effect is that a stopped car now gets the full heading reward, so we will watch for an agent that learns to stay still. |
 
 ### New Collection Schema
 
