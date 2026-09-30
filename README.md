@@ -5,6 +5,14 @@ This semester project uses the Soft Actor-Critic (SAC) agent implemented in [ACR
 
 ## 1. Research Goals and Scope
 
+### Motivation
+
+AI-controlled opponents are an important part of many video games. In racing simulators, their driving affects how challenging and engaging a race feels. Our interest is in whether a learning-based agent can develop the driving skills needed to set competitive lap times.
+
+AI has already surpassed human performance in games such as chess and Go. These games have enormous search spaces, but their actions are discrete and their rules clearly defined. Racing presents a different control problem: an agent must continuously coordinate steering, acceleration, and braking while responding to the car's motion. Small mistakes can compromise a corner, invalidate a lap, or end a run.
+
+Game opponents do not necessarily use machine learning. This project focuses specifically on a reinforcement-learning agent that improves through interaction with a racing simulator. Using ACRL as a starting point, we want to understand how a small design change can help that agent learn faster or drive faster.
+
 Our main goal is to improve ACRL's driving performance in one of two ways:
 
 - **Learning efficiency:** reduce the number of environment interactions needed to reach a target lap time.
