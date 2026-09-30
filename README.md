@@ -27,13 +27,6 @@ Our long-term interest is an agent that can set competitive lap times. In this p
 
 We will pick one of these as the primary objective and report the other as a secondary result. Unless stated otherwise, "iterations" means environment steps. We will also log gradient updates and wall-clock time.
 
-| Decision | Current plan |
-| --- | --- |
-| Primary objective | (To be added: primary objective: efficiency or efficacy) |
-| Initial intervention | (To be added: first experiment from A, B, or C and the reason for choosing it) |
-| Initial hypothesis | (To be added: expected change and its rationale) |
-| Decision deadline | (To be added: dates for completing the pilot and finalizing the experiment settings) |
-
 ### Sub-Quests: Candidate Interventions
 
 | Experiment | Hypothesis | Controlled comparison |
