@@ -312,3 +312,7 @@ We will build on the existing [SAC implementation](https://github.com/Jurredr/AC
 Architecture source: [core.py](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/core.py).
 
 For Check-In 2, we aim to have a working baseline and one comparison condition trained on a small, equal budget, with real learning curves or a documented account of how the agent fails. A non-neural probe is optional, and we don't plan to use a larger architecture.
+
+
+## AI Disclosure
+Claude (Entropic) has been used for grammar improvement on README and code debugging idea.
