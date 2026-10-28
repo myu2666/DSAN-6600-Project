@@ -278,7 +278,7 @@ Driving risks large penalties from bad headings and drifting (the worst step in 
 
 **What happened.** Episodes are capped at 1,000 steps, about 42 seconds at the observed step time.
 
-**Why it matters.** Assetto Corsa's built-in AI laps Silverstone 1967 in this car in about 85 seconds (1:25.454), which is roughly 2,000 steps. Even a perfect policy could not complete a lap within 1,000 steps, so our main goal was impossible by construction.
+**Why it matters.** Assetto Corsa's built-in AI laps Silverstone 1967 in this car, with the same set of assists but faster tires, in about 85 seconds (1:25.454), which is roughly 2,000 steps, and the 1:25.454 was set after the AI had been given a warm up/out lap, so the step count for that is actually 4000. Even a perfect policy could not complete a lap within 1,000 steps, so our main goal was impossible by construction.
 
 **Fix.** Raise the limit to about 4,000 steps, or base it on wall-clock time since step time varies.
 
