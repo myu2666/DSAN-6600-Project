@@ -2,9 +2,9 @@
 
 Semester Project for DSAN 6600: Deep Learning and Neural Networks
 
-We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implementation for Assetto Corsa, to test whether one small design change helps a racing agent learn faster or set faster valid laps.
+We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implementation for Assetto Corsa, to train an agent that can drive a full, valid lap of a race track. If it gets there, our next target is the lap time set by Assetto Corsa's built-in AI on the same car and track.
 
-**Status (Check-In 2):** Our SAC baseline trains end to end in Assetto Corsa. We have a five-episode pilot and one overnight training run (570 episodes). The baseline does not yet learn to drive: after training, the car mostly stays still. This check-in documents the baseline, what it produced, why it fails, and what we will change for Check-In 3.
+**Status (Check-In 2):** Our SAC baseline trains end to end in Assetto Corsa. We have a five-episode pilot and one overnight training run (570 episodes). The baseline does not yet learn to drive: after training, the car mostly stays still. This check-in documents the baseline, what it produced, why it fails, and what we will change for Check-In 3 to get the car around a full lap.
 
 Items marked **(To be added for CI2: ...)** are still needed for this submission. Items marked (To be added: ...) are planned for later check-ins.
 
@@ -13,40 +13,45 @@ Items marked **(To be added for CI2: ...)** are still needed for this submission
 | Rubric item | Where to look | Status |
 | --- | --- | --- |
 | Neural baseline | [2. Neural Baseline](#2-neural-baseline-sac) | SAC runs end to end; training setup documented |
-| Results + evaluation | [3. Results and Evaluation](#3-results-and-evaluation) | Training-run results done; held-out evaluation **(To be added for CI2)** |
+| Results + evaluation | [3. Results and Evaluation](#3-results-and-evaluation) | Training-run results and learning curves done; held-out evaluation **(To be added for CI2)** |
 | Failure analysis | [4. Failure Analysis](#4-failure-analysis) | Four failures with evidence, causes, and fixes; next steps toward CI3 |
 | Repo / write-up | [1.3 Repository and How to Run](#13-repository-and-how-to-run) | Layout and run steps; final layout **(To be added for CI2)** |
 | Progress video | [Progress Video](#progress-video) | **(To be added for CI2)** |
 
-**Key result:** over 570 training episodes, the policy learned to move *less* (median speed fell from 3.4 to 0.8 km/h) while its reward improved slightly. The network learned what the reward asked for. The reward asked for the wrong thing.
+**Key result:** the baseline is still far from Stage 1 (completing a lap). Over 570 training episodes, the policy learned to move *less* (median speed fell from 3.4 to 0.8 km/h) while its reward improved slightly. The network learned what the reward asked for. The reward asked for the wrong thing.
 
 ## 1. Project Overview
 
 ### 1.1 Goal
 
-AI opponents largely decide how challenging and fun a racing simulator feels. Unlike chess or Go, racing needs continuous control of steering, throttle, and brake while reacting to how the car moves, and one small mistake can ruin a corner or invalidate a lap. We want to see whether an agent that learns by driving can reach competitive lap times.
+AI opponents largely decide how challenging and fun a racing simulator feels. Unlike chess or Go, racing needs continuous control of steering, throttle, and brake while reacting to how the car moves, and one small mistake can ruin a corner or invalidate a lap. We want to see how far an agent that learns only by driving can get.
 
-With limited time and compute, we will test one change carefully instead of modifying several parts of the system at once. We measure progress against a reproducible ACRL baseline under matched conditions; beating our own baseline alone would not mean the agent drives at a human level.
+Our goals come in two stages:
 
-| Objective | Question | Main measure |
+| Stage | Goal | How we measure it |
 | --- | --- | --- |
-| **Efficiency** | Can the agent reach a target lap time with fewer interactions? | Environment steps needed to hit both a lap-time target and a minimum completion rate |
-| **Efficacy** | Can the agent drive faster with the same training budget? | Median valid lap time, as long as the completion rate stays above the minimum |
+| **1. Complete a lap (main goal)** | The agent drives one full, valid lap of Silverstone 1967 without help. | Valid-lap completion rate in held-out evaluation; environment steps until the first valid lap |
+| **2. Catch the built-in AI (stretch goal)** | Once the agent completes laps reliably, close the gap to Assetto Corsa's built-in AI in the same car on the same track. | Median valid lap time compared with the built-in AI's lap of **1:25.454** **(To be added for CI2: confirm the exact time and that the session conditions match ours)** |
 
-Candidate interventions (we will run one):
+Everything we change before Stage 2 serves Stage 1. In practice that means adjusting the reward, analyzing why episodes fail, and fixing whatever stops the car from getting around the track. A faster lap only counts once the car can finish laps reliably, so lap times are always reported together with the completion rate.
 
-| Experiment | Hypothesis | Controlled comparison |
+With limited time and compute, we change one thing at a time and compare it with a reproducible baseline under matched conditions. Matching the built-in AI's lap time would mean the agent is competitive with the game's own opponents. It would not, by itself, mean the agent drives at a human expert's level.
+
+How we plan to get to Stage 1:
+
+| Approach | Hypothesis | Controlled comparison |
 | --- | --- | --- |
-| **A. Adjust the reward** | A strong centerline penalty may make driving more stable but push the agent away from faster racing lines. | Compare two penalty weights, keeping all other reward terms and settings the same. |
-| **B. Test the observations** | Absolute coordinates may help on a single track, but we don't know how much they actually contribute. | Mask the absolute coordinates while keeping the network architecture and other inputs unchanged. |
-| **C. Diagnose costly failures** | Repeated failures may waste training steps or keep lap times from improving. | Find one failure pattern in validation runs and test one targeted fix. |
+| **A. Adjust the reward** | The baseline reward makes standing still the safest choice (see [4.1](#41-the-policy-learned-to-stand-still)). A reward that pays for forward progress should get the car moving and further around the lap. | Compare the baseline reward with the revised reward, keeping everything else the same. |
+| **B. Test the observations** | Absolute coordinates may help on a single track, but we don't know how much they actually contribute. | Mask the absolute coordinates while keeping the network architecture and other inputs unchanged. (Lower priority until the car completes laps.) |
+| **C. Analyze failures** | Repeated failures, such as getting stuck or running off at the same corner, waste training steps and keep the car from finishing. | Find where and why episodes fail, then test one targeted fix at a time. |
 
-The CI2 baseline already points toward A or C: its main failure comes from the reward (see [4.1](#41-the-policy-learned-to-stand-still)).
+We will start with A, guided by C: the CI2 baseline's main failure comes from the reward.
 
 | Decision | Current plan |
 | --- | --- |
-| Primary objective | (To be added: efficiency or efficacy) |
-| Initial intervention | (To be added: A, B, or C, and the reason) |
+| Main goal | Complete one full, valid lap (Stage 1) |
+| First intervention | Revised reward (A); **(To be added for CI2: confirm the team agrees)** |
+| Stage 2 trigger | (To be added: the completion rate at which we move on to lap time, e.g. a share of held-out episodes) |
 
 ### 1.2 Scope
 
@@ -205,9 +210,11 @@ Both logs are clean at the episode-summary level: every value is finite, every e
 
 - **The policy learned to move less.** Median speed fell from 3.4 km/h in the random phase to about 0.8 km/h by episode 200 and stayed there. Net progress fell from 0.55% to about 0.09% of a lap. The farthest any episode got was 2.5% of a lap, in episode 9, while actions were still random.
 - **Reward improved while driving got worse.** Median episode reward rose by about 10% over the same period that progress fell about sixfold. Across all 570 episodes, reward was slightly negatively correlated with net progress (r ≈ −0.28), while speed and net progress moved together (r ≈ 0.96).
-- **No episode completed a lap,** so lap time, our main metric, is N/A for this baseline. The completion rate is 0%.
+- **No episode completed a lap.** The completion rate for our main goal is 0%, and lap time is N/A. The farthest the car got was 2.5% of a lap.
 
-Figures: **(To be added for CI2: learning curves of episode reward, average speed, and net progress by episode, with the end of the random-action phase marked)**
+![Learning curves of the overnight run](figures/overnight_learning_curves.png)
+
+*Episode reward, average speed, and net progress for each of the 570 episodes, with a 20-episode rolling median. The shaded band marks the random-action phase (episodes 1–10). Speed and progress drop once the policy starts choosing actions, while reward stays flat or improves slightly.*
 
 ### 3.2 Held-Out Evaluation
 
@@ -271,7 +278,7 @@ Driving risks large penalties from bad headings and drifting (the worst step in 
 
 **What happened.** Episodes are capped at 1,000 steps, about 42 seconds at the observed step time.
 
-**Why it matters.** A lap of Silverstone 1967 in this car takes roughly 85–95 seconds, or about 2,000+ steps. **(To be added for CI2: reference lap time and its source)** Even a perfect policy could not complete a lap, so the lap-complete condition could never trigger and our main metric could not be measured.
+**Why it matters.** Assetto Corsa's built-in AI laps Silverstone 1967 in this car in about 85 seconds (1:25.454), which is roughly 2,000 steps. Even a perfect policy could not complete a lap within 1,000 steps, so our main goal was impossible by construction.
 
 **Fix.** Raise the limit to about 4,000 steps, or base it on wall-clock time since step time varies.
 
@@ -295,7 +302,7 @@ The flat penalty below ~40 km/h is especially relevant: like the baseline reward
 3. Run the confirmation test for 4.1.
 4. Raise the episode limit and switch to the revised reward with stuck termination. This changes the baseline, so it will apply to every condition (or become experiment A/C itself).
 5. Retrain with at least 3 seeds and run the held-out evaluation (Section 3.2).
-6. Once the baseline completes laps, fix the lap-time target and start the chosen intervention.
+6. Once the car completes laps reliably (Stage 1), move on to Stage 2: compare the median valid lap time with the built-in AI's 1:25.454.
 
 ## 5. Data and Evaluation Plan (from Check-In 1)
 
@@ -318,14 +325,13 @@ Audit figures (trajectory, speed distribution, sampling intervals, section cover
 
 | Role | Measure |
 | --- | --- |
-| Primary (efficiency) | Environment steps to reach the preset lap-time and completion-rate target |
-| Primary (efficacy) | Median valid lap time after a fixed training budget |
-| Reliability | Valid-lap completion rate and its change from the baseline |
-| Learning diagnostics | Rates of reaching one sector, two sectors, and a full lap; progress before failure |
-| Failure diagnostics | Off-track events, stuck episodes, and where failures happen |
+| Stage 1 (main) | Valid-lap completion rate in held-out evaluation; environment steps until the first valid lap |
+| Stage 1 progress (before any lap is completed) | Farthest progress per episode; rates of reaching one sector, two sectors, and a full lap |
+| Stage 2 (stretch) | Median valid lap time, and its gap to the built-in AI's 1:25.454 |
+| Failure diagnostics | Stuck episodes, off-track events, and where failures happen |
 | Cost | Gradient updates and wall-clock training time |
 
-Lap times are always reported with completion rates. A run that never hits the target is reported as **not reached within budget**; a run with no valid laps has lap time **N/A**.
+Lap times are always reported with completion rates. A run that never completes a lap has lap time **N/A**; a run that never reaches a target is reported as **not reached within budget**.
 
 ### 5.3 Protocol
 
@@ -343,10 +349,10 @@ Every condition uses the same budget, update schedule, shared fixes, and evaluat
 
 | Criterion | Value or rule to finalize |
 | --- | --- |
-| Target lap time (efficiency) | (To be added: set after the revised baseline completes laps) |
-| Minimum valid-lap completion rate | (To be added) |
-| Meaningful improvement | (To be added: in steps or lap time) |
-| Acceptable completion-rate decrease | (To be added) |
+| Stage 1 reached | (To be added: e.g. at least one valid lap in held-out evaluation, then a minimum completion rate) |
+| Moving on to Stage 2 | (To be added: the completion rate required before we focus on lap time) |
+| Stage 2 reached | Median valid lap time at or below the built-in AI's 1:25.454, with the completion rate above the Stage 1 minimum |
+| Meaningful improvement between conditions | (To be added: in completion rate, steps to first lap, or lap time) |
 
 A negative result is still worth reporting: a fair experiment with a clear account of its limits is a useful outcome.
 
@@ -359,8 +365,10 @@ A negative result is still worth reporting: a fair experiment with a clear accou
 | Stage | Deliverable | Deadline |
 | --- | --- | --- |
 | Check-In 2 | Working SAC baseline, training results, failure analysis | (To be added) |
-| Revised baseline | Loading fix, revised reward, longer episodes, completed laps | (To be added) |
-| Check-In 3 | Baseline vs. one intervention, multiple seeds, held-out evaluation | (To be added) |
+| Revised baseline | Loading fix, revised reward, longer episodes | (To be added) |
+| Stage 1 | First valid lap, then a reliable completion rate | (To be added) |
+| Check-In 3 | Baseline vs. revised reward, multiple seeds, held-out evaluation | (To be added) |
+| Stage 2 (stretch) | Lap time compared with the built-in AI's 1:25.454 | (To be added) |
 | Final evaluation | Frozen test results, uncertainty, failure analysis, limitations | (To be added) |
 
 ## AI Disclosure
