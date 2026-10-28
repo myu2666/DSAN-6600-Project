@@ -4,7 +4,7 @@ Semester Project for DSAN 6600: Deep Learning and Neural Networks
 
 We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implementation for Assetto Corsa, to test whether one small design change helps a racing agent learn faster or set faster valid laps.
 
-**Status:** This is a project proposal with a first look at the public data and a short five-episode pilot run. We have not run a full training or evaluation yet. Items in parentheses mark decisions, evidence, or results we still need to fill in.
+**Status:** This is a project proposal with a first look at the public data, a short five-episode pilot run, and one overnight training run (570 episodes) in which the agent learned to stay almost still. We have changed the reward and the save/load code in response but have not yet rerun training with those changes. Items in parentheses mark decisions, evidence, or results we still need to fill in.
 
 ## 1. Research Goals and Scope
 
@@ -117,7 +117,26 @@ While setting up ACRL, we found several problems in the original code (upstream 
 | --- | --- | --- |
 | Heading error and distance from the centerline were computed from the car's world x and y coordinates. In Assetto Corsa, y is the vertical axis and the track lies in the x–z plane; the public position sample (-131.0, -0.4, -822.3) shows y staying close to zero. | Use x and z, matching the reference path. | Both values are observations and reward terms. With y, the agent was being told how far it was from the centerline using its height instead of its position on the track. |
 | The velocity used for heading error was built from `velocity[0]` and `velocity[1]`, which are the horizontal x and vertical y components. | Use `velocity[0]` and `velocity[2]` (x and z). | The heading error now compares the car's direction of travel on the track with the direction of the reference path. |
-| The heading calculation divided the path direction and the velocity by their lengths without checking for zero. A stopped car has zero velocity, so the result became NaN. | Return a heading error of 0 when the car is nearly stopped (speed below 1e-3) or the path direction is degenerate. | Every episode starts from a standstill, so this case came up at each reset, and NaN values could reach the replay buffer. One side effect is that a stopped car now gets the full heading reward, so we will watch for an agent that learns to stay still. |
+| The heading calculation divided the path direction and the velocity by their lengths without checking for zero. A stopped car has zero velocity, so the result became NaN. | Return a heading error of 0 when the car is nearly stopped (speed below 1e-3) or the path direction is degenerate. | Every episode starts from a standstill, so this case came up at each reset, and NaN values could reach the replay buffer. One side effect is that a stopped car now gets the full heading reward. This is what happened in our overnight run: the agent learned to stay still (see [First Long Run](#first-long-run-the-agent-learned-to-stay-still) in Section 3). |
+
+**Reward** (`ac_environment.py`, `main.py`)
+
+| Problem | Our fix | Why it matters |
+| --- | --- | --- |
+| In ACRL's active reward (`_get_reward_5`), a stopped car earns +1 from the heading term, while driving adds at most `speed / max_speed` and risks heading and off-center penalties. The off-center penalty is in raw meters, so it also dwarfs the speed term. | Add `_get_reward_6` and make it the default (`reward_fn = "v6"` in `main.py`). It multiplies the heading term by the speed fraction, so it is 0 when stopped and positive only when the car moves along the track, and it scales the off-center penalty by 10 m and caps it at 1. The original reward is still available as `"v5"`. | Standing still no longer earns the best heading reward. This is a change to the baseline reward, not one of the experiment A conditions, and every condition will use it. |
+| The reward was logged only as a total. | Log each reward component per episode (`RewDrive` and `RewOffcenter` for v6; `RewHeading`, `RewSpeed`, and `RewOffcenter` for v5). | We can see which term drives the reward instead of guessing from the total. |
+
+**Training, saving, and loading** (`sac.py`, `main.py`, `utils/logx.py`)
+
+| Problem in the original | Our fix | Why it matters |
+| --- | --- | --- |
+| Loading a saved run crashed: `SacAgent` called `logger.restore_state()`, which was never implemented. Even past that, `torch.load` was given a folder instead of `model.pt` and fails by default on PyTorch 2.6 and later. | Implement `restore_state` in `logx.py`; it reads the previous run's `config.json` and the last row of its `progress.txt`. Load `model.pt` from the run folder with `weights_only=False` on the CPU. | Training can now continue from a saved run. We only load model files we created, since this loading mode can run arbitrary code. |
+| Only the policy and Q-networks were saved. The target networks, optimizer states, and counters were lost. | Save them to `train_state.pt` next to `model.pt` and restore them on load. A resumed run continues its episode number, total steps, and distance high score, and writes to a new `<run>_resume_<timestamp>` folder. | A resumed run picks up where it stopped instead of restarting the counters and optimizers. Runs saved before this change (including the overnight run) have no `train_state.pt`, so only their networks are restored. The replay buffer is still not saved. |
+| A resumed run took random actions again for its first 10,000 steps, and gradient updates were gated on `total_steps`, which would have started updates on an empty buffer once the counters continued. | Act with the loaded policy from the first step (`start_steps=0`), and gate updates on the replay buffer size. | The loaded policy is actually used, and updates wait until the new buffer has enough data. |
+| Hitting the 1,000-step time limit was stored as a terminal state in the replay buffer. | Store only real endings (`terminated`) as terminal. | A time limit is not the end of the task, so the critic should still bootstrap from the next state. |
+| `core.py` moved the networks to the GPU when CUDA was available, while observations and replay batches stayed on the CPU. The Q-network parameters were stored as a one-shot iterator, so the loop that freezes them during the policy update did nothing. | Keep all networks on the CPU, and store the Q-network parameters as a list. | Runs behave the same on every machine, and the Q-networks are actually frozen during the policy update. |
+
+These fixes have not yet been tested in Assetto Corsa. (To be added: results of a save, resume, and reward check in the game)
 
 ### New Collection Schema
 
@@ -208,7 +227,45 @@ Progress is a fraction of one lap. "Final progress" is ACRL's `EpDist`, the lap 
 - **The time column is not the control interval.** `EpTime` starts before the reset and also covers gradient updates and saving drive data and the model. Episode 1 took 21.5 ms per logged step, while episodes 2–5 averaged 35.1 ms. With `update_after=1000` and `update_every=50`, episode 1 made 50 update calls (all at its last step), while each later episode made 1,000. The extra update work is a likely reason for the gap. Measuring the actual control interval would require a timestamp for each action and observation.
 - **End reasons are not logged.** All five episodes stopped at exactly 1,000 steps, which is consistent with a time limit, but the log does not record why an episode ended. This is one reason our collection schema includes `end_reason`.
 
-**Next steps from the pilot:** continue a single uninterrupted training run past 10,000 cumulative steps so the policy chooses actions; log reward components, end reasons, and per-step timestamps; then plot progress and reward by episode as a learning curve. Restarting resets the step counter, and loading a saved model sets `start_steps=0` and creates a new replay buffer and optimizers, so any resumed training will be recorded as a separate run segment.
+**Next steps from the pilot:** continue a single uninterrupted training run past 10,000 cumulative steps so the policy chooses actions; log reward components, end reasons, and per-step timestamps; then plot progress and reward by episode as a learning curve. A resumed run continues the counters and restores the target networks and optimizers, but it starts with an empty replay buffer, so we will still record resumed training as a separate run segment.
+
+### First Long Run: The Agent Learned to Stay Still
+
+A teammate then ran the same setup overnight: 570 episodes, 570,000 environment steps, and about 6.9 hours of wall-clock time. This run used our coordinate fixes and the original ACRL reward (`_get_reward_5`), but not the reward and training-loop changes listed in [Shared Implementation Fixes](#shared-implementation-fixes). Watching the game, the car mostly accelerated briefly, braked, and then stayed nearly stationary.
+
+The log has 570 rows, no missing values, and `TotalSteps` increases by exactly 1,000 per episode. Episodes 1–10 are the random-action phase (the first 10,000 steps); from episode 11 on, the policy chose the actions.
+
+| Episodes | Actions | Avg. speed (km/h) | Net progress (% of lap) | Mean step reward |
+| --- | --- | --- | --- | --- |
+| 1–10 | Random | 3.44 | 0.55% | -5.25 |
+| 11–50 | Policy | 3.16 | 0.45% | -5.37 |
+| 51–100 | Policy | 1.55 | 0.19% | -5.03 |
+| 101–200 | Policy | 1.07 | 0.14% | -4.77 |
+| 201–300 | Policy | 0.80 | 0.08% | -4.75 |
+| 301–400 | Policy | 0.85 | 0.09% | -4.86 |
+| 401–500 | Policy | 0.82 | 0.09% | -4.72 |
+| 501–570 | Policy | 0.81 | 0.10% | -4.93 |
+
+All values are medians over the episodes in each range. Speed is the episode average of the observed speed in km/h.
+
+**What the numbers show**
+
+- **The agent moved less as training went on.** Median average speed fell from 3.4 km/h with random actions to about 0.8 km/h after episode 200, and median net progress fell from 0.55% to about 0.1% of a lap per episode. The highest final progress in any episode was 2.5% of a lap, in episode 9, while actions were still random.
+- **The reward still rose slightly.** The median step reward improved from -5.25 to about -4.8, so the agent did get better at the reward it was given.
+- **Moving was penalized, not rewarded.** Across the policy episodes, episode reward was negatively correlated with average speed (r ≈ -0.38) and with net progress (r ≈ -0.32). Episodes in which the car moved more earned less reward.
+- **Rewards stayed negative.** Only 16 of 570 episodes had even one step with a positive reward.
+
+**Why this happened**
+
+ACRL's reward is `cos(θ) − |sin(θ)| − d + v / v_max`, where θ is the heading error, d is the distance to the nearest reference-path point in meters, and v is the speed. When the car is nearly stopped, our zero-speed fix sets the heading error to 0, so the heading term is at its maximum of +1. A stopped car therefore earns `1 − d`. Driving adds at most `v / 180` (0.17 at 30 km/h), while poor steering can push the heading term down to about -1.41 and move the car farther from the center line. For an agent that cannot yet steer well, braking is the safest way to keep the reward high. The late-run step rewards of about -4.8 are consistent with a stopped car sitting about 5.8 m from the nearest reference point.
+
+This is the side effect we noted when fixing the zero-speed NaN. Without that fix, the original code would have produced NaN rewards at a standstill instead, so the reward needed to change either way.
+
+Other factors may have slowed learning: the observations are not normalized (positions range up to ±2,000 while progress stays between 0 and 1), the time limit was treated as a terminal state, and the Q-network freezing bug was still present. The reward loophole is the most direct explanation for standing still, but this run alone can't rule the others out.
+
+**What we changed:** a new default reward (`_get_reward_6`) that only pays for heading while the car is moving and keeps the off-center penalty on the same scale as the driving term, plus per-component reward logging. Details are in [Shared Implementation Fixes](#shared-implementation-fixes). We will not resume from this run's model under the new reward, because its critics learned values for the old one. The code prints a warning if the reward changes between a saved run and a resumed one.
+
+**Next step:** rerun the baseline from scratch with the new reward and check, from the reward-component columns and the speed and progress per episode, whether the agent keeps moving after the random-action phase. (To be added: results of the rerun)
 
 ### Figures and Quality Checks to Complete
 
@@ -227,7 +284,7 @@ In continuous control, what matters is how well the data covers different states
 
 ### Failure Analysis and Infrastructure Checks
 
-For A, we will look at the size of each reward component and check whether the agent gives up progress to avoid penalties. For B, we will compare behavior across track sections. For C, we will group repeated failures into types such as running wide at corner entry, steering oscillation, and getting stuck.
+For A, we will look at the size of each reward component and check whether the agent gives up progress to avoid penalties. For B, we will compare behavior across track sections. For C, we will group repeated failures into types such as running wide at corner entry, steering oscillation, and getting stuck. We have already seen one: in the overnight run, the agent learned to stay still (see [First Long Run](#first-long-run-the-agent-learned-to-stay-still)).
 
 We will log infrastructure problems separately: failed resets, communication errors, and invalid observations. Before comparing any training runs, we will check coordinate consistency, normalization at zero speed, CPU/GPU handling, saving and loading, and control timing.
 
@@ -315,4 +372,4 @@ For Check-In 2, we aim to have a working baseline and one comparison condition t
 
 
 ## AI Disclosure
-Claude (Entropic) has been used for grammar improvement on README and code debugging idea.
+Claude (Anthropic) was used to improve the grammar of this README, and to help debug some of the code.
