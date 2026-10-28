@@ -4,30 +4,36 @@ Semester Project for DSAN 6600: Deep Learning and Neural Networks
 
 We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implementation for Assetto Corsa, to test whether one small design change helps a racing agent learn faster or set faster valid laps.
 
-**Status:** This is a project proposal with a first look at the public data, a short five-episode pilot run, and one overnight training run (570 episodes). The overnight run did not learn to drive: the car ended up mostly stationary. We have not run a full evaluation yet. Items in parentheses mark decisions, evidence, or results we still need to fill in.
+**Status (Check-In 2):** Our SAC baseline trains end to end in Assetto Corsa. We have a five-episode pilot and one overnight training run (570 episodes). The baseline does not yet learn to drive: after training, the car mostly stays still. This check-in documents the baseline, what it produced, why it fails, and what we will change for Check-In 3.
 
-## 1. Research Goals and Scope
+Items marked **(To be added for CI2: ...)** are still needed for this submission. Items marked (To be added: ...) are planned for later check-ins.
 
-### Motivation
+## Check-In 2 at a Glance
 
-AI opponents are a big part of many video games, and in racing simulators they largely decide how challenging and fun a race feels. We want to see whether an agent that learns by driving can reach competitive lap times.
+| Rubric item | Where to look | Status |
+| --- | --- | --- |
+| Neural baseline | [2. Neural Baseline](#2-neural-baseline-sac) | SAC runs end to end; training setup documented |
+| Results + evaluation | [3. Results and Evaluation](#3-results-and-evaluation) | Training-run results done; held-out evaluation **(To be added for CI2)** |
+| Failure analysis | [4. Failure Analysis](#4-failure-analysis) | Four failures with evidence, causes, and fixes; next steps toward CI3 |
+| Repo / write-up | [1.3 Repository and How to Run](#13-repository-and-how-to-run) | Layout and run steps; final layout **(To be added for CI2)** |
+| Progress video | [Progress Video](#progress-video) | **(To be added for CI2)** |
 
-AI has already beaten top human players in chess and Go. Those games have huge search spaces, but the moves are discrete and the rules are fixed. Racing is a different kind of problem. The agent has to control steering, throttle, and brake continuously while reacting to how the car moves, and one small mistake can ruin a corner or invalidate a lap.
+**Key result:** over 570 training episodes, the policy learned to move *less* (median speed fell from 3.4 to 0.8 km/h) while its reward improved slightly. The network learned what the reward asked for. The reward asked for the wrong thing.
 
-Game opponents do not necessarily learn from experience. Our project focuses on an agent that improves through interaction with the simulator. Since our time and compute are limited, we will test one change carefully instead of modifying several parts of the system at once.
+## 1. Project Overview
 
-Our long-term interest is an agent that can set competitive lap times. In this project, we will measure progress toward that goal against a reproducible ACRL baseline under matched conditions. Human or built-in AI lap times may provide additional context when comparable results are available. Beating our own baseline alone would not mean the agent drives at a human level.
+### 1.1 Goal
 
-### Main Quest: Learn Faster or Drive Faster
+AI opponents largely decide how challenging and fun a racing simulator feels. Unlike chess or Go, racing needs continuous control of steering, throttle, and brake while reacting to how the car moves, and one small mistake can ruin a corner or invalidate a lap. We want to see whether an agent that learns by driving can reach competitive lap times.
+
+With limited time and compute, we will test one change carefully instead of modifying several parts of the system at once. We measure progress against a reproducible ACRL baseline under matched conditions; beating our own baseline alone would not mean the agent drives at a human level.
 
 | Objective | Question | Main measure |
 | --- | --- | --- |
 | **Efficiency** | Can the agent reach a target lap time with fewer interactions? | Environment steps needed to hit both a lap-time target and a minimum completion rate |
 | **Efficacy** | Can the agent drive faster with the same training budget? | Median valid lap time, as long as the completion rate stays above the minimum |
 
-We will pick one of these as the primary objective and report the other as a secondary result. Unless stated otherwise, "iterations" means environment steps. We will also log gradient updates and wall-clock time.
-
-### Sub-Quests: Candidate Interventions
+Candidate interventions (we will run one):
 
 | Experiment | Hypothesis | Controlled comparison |
 | --- | --- | --- |
@@ -35,190 +41,152 @@ We will pick one of these as the primary objective and report the other as a sec
 | **B. Test the observations** | Absolute coordinates may help on a single track, but we don't know how much they actually contribute. | Mask the absolute coordinates while keeping the network architecture and other inputs unchanged. |
 | **C. Diagnose costly failures** | Repeated failures may waste training steps or keep lap times from improving. | Find one failure pattern in validation runs and test one targeted fix. |
 
-All three experiments serve the main objective; we are not running three separate projects. The observation ablation alone does not establish how well the agent would generalize to another track.
+The CI2 baseline already points toward A or C: its main failure comes from the reward (see [4.1](#41-the-policy-learned-to-stand-still)).
 
-### Success Criteria
-
-The baseline will include the shared implementation fixes needed for valid experiments, and every condition will get the same fixes before we compare them.
-
-For efficiency, we will set the lap-time target after the baseline pilot and lock it in before testing any intervention. For efficacy, we will compare lap times after equal training budgets. A faster lap time doesn't count as an improvement if the completion rate drops below the limit we set in advance.
-
-| Criterion | Value or rule to finalize |
+| Decision | Current plan |
 | --- | --- |
-| Target lap time for efficiency | (To be added: a target time or a rule for deriving it from pilot results) |
-| Minimum valid-lap completion rate | (To be added: minimum completion rate and how it will be calculated) |
-| Meaningful efficiency improvement | (To be added: target reduction in environment steps) |
-| Meaningful efficacy improvement | (To be added: target reduction in lap time) |
-| Acceptable completion-rate decrease | (To be added: allowable decrease in percentage points) |
+| Primary objective | (To be added: efficiency or efficacy) |
+| Initial intervention | (To be added: A, B, or C, and the reason) |
 
-Our goal is better performance, but a negative result is still worth reporting. Even if we miss the target, a fair experiment with a clear account of its limits is a useful outcome.
+### 1.2 Scope
 
-### Core Scope and Feasibility
+One car, one track, no opponents, fixed driving conditions.
 
-We will use one car, one track, no opponents, and fixed driving conditions.
-
-| Setting | Planned configuration |
+| Setting | Value |
 | --- | --- |
-| Car and track | (To be added: car and track names) |
-| Session settings | (To be added: fixed tires, assists, weather, grip, fuel, and other session conditions) |
-| Hardware and runtime | (To be added: Windows environment, CPU/GPU/RAM, Python version, and key package versions) |
-| Available compute time | (To be added: available runtime per week and total compute budget) |
-| Pilot budget | (To be added: pilot step budget or time limit) |
-| Main experiment budget | (To be added: training steps per condition and seed, and total number of runs) |
+| Car and track | Ferrari 458 GT2 on Silverstone 1967 (the defaults in `main.py`); **(To be added for CI2: confirm these were used in our runs)** |
+| Session settings | (To be added: tires, assists, weather, grip, fuel) |
+| Hardware | Team member's Windows laptop; **(To be added for CI2: CPU/GPU/RAM, Python and package versions)** |
+| Training budget so far | 5,000 steps (pilot) and 570,000 steps (overnight, ~6.9 hours) |
 
-If the baseline can't finish a lap reliably, our first milestone becomes getting a working baseline. Measures like how often the agent reaches each section, or how far it gets before failing, will help us diagnose problems, but lap time stays the main evidence.
+### 1.3 Repository and How to Run
 
-If we still can't get reliable laps by (To be added: date for reviewing project scope), we will write up the limitation and agree on a narrower goal instead of claiming a lap-time improvement we couldn't measure.
+**(To be added for CI2: confirm the final layout below matches the submitted repository, including where logs, figures, and notebooks live.)**
 
-### Stretch Goal: Transfer
+```
+ACRL_modified_code/
+├── ACRL.py                  # In-game app: sends telemetry from Assetto Corsa over a socket
+└── standalone/
+    ├── main.py              # Entry point: car/track settings, hyperparameters, start or resume training
+    ├── ac_controller.py     # Sends actions to the game through a virtual Xbox controller (vgamepad)
+    ├── ac_socket.py         # Socket connection to the in-game app
+    ├── test_gamepad.py      # Checks that controller inputs reach the game (added by us)
+    └── sac/
+        ├── ac_environment.py   # Gymnasium environment: observations, reward, termination
+        ├── sac.py              # SAC agent, replay buffer, training loop
+        ├── core.py             # Actor and critic networks
+        └── utils/
+            ├── track_spline.py # Heading error and distance to the reference path
+            └── logx.py         # Logging: progress.txt, config.json, model.pt, drive_data.json
+track_data/spline_points.csv    # Reference path (from upstream ACRL)
+experiments/<run name>/         # Created for each training run
+```
 
-If we finish the main comparison, we would like to try a second track with the same car. We expect this may be easier than switching cars because the car's underlying characteristics remain more consistent. A different layout, surface, elevation profile, and braking points could still make transfer difficult.
+**Running a training run**
 
-- **Zero-shot:** run the trained policy on the new track with no further training.
-- **Fine-tuning:** compare continuing training from the existing policy with training from scratch, using the same target and budget.
+1. Install Assetto Corsa and follow the upstream [setup instructions](https://github.com/Jurredr/ACRL#readme) (Visual C++ redistributable, MS-MPI, Python 3.3.5 for the in-game app). **(To be added for CI2: our tested Python version and `requirements.txt`)**
+2. Copy the in-game app into `assettocorsa/apps/python/ACRL` and enable it in the game settings.
+3. Start a practice session with the chosen car and track.
+4. Optional: run `python test_gamepad.py` from `standalone/` and switch to the game window to confirm throttle, steering, and brake reach the car.
+5. Run `python main.py` from `standalone/`. It asks whether to load a previous model and for an experiment name, then trains.
+6. Results go to `experiments/<run name>/`: `progress.txt` (one row per episode), `config.json`, `model.pt`, and `drive_data.json`.
 
-We will document any new reference path or track preparation. Here, "zero-shot" means no extra training; the agent may still receive basic information about the new track. Transferring to a different car is out of scope unless time allows.
+Resuming from a saved model does not work yet in the code we ran; see [4.2](#42-saved-models-could-not-be-loaded).
 
-## 2. Data Access and Documentation
+## 2. Neural Baseline (SAC)
 
-### Available Data
+### 2.1 Task as a Reinforcement Learning Problem
 
-The public [track_data directory](https://github.com/Jurredr/ACRL/tree/master/track_data) contains the files below. Row counts exclude headers.
+There is no fixed dataset. The agent collects its own training data by driving, and SAC learns from a replay buffer of that experience.
 
-| File | Size and structure | Main contents | Intended use |
-| --- | --- | --- | --- |
-| `car.csv` | 15,681 rows, 17 columns | Speed, RPM, velocity, acceleration, position, timestamps, and other vehicle fields | Vehicle-state audit |
-| `lap.csv` | 15,681 rows, 10 columns | Lap progress, lap count, timing, sector, invalid flag, timestamp | Progress and timing audit |
-| `tick.csv` | 15,681 rows, 3 columns | Lap location, world location, velocity | Trajectory inspection |
-| `spline_points.csv` | 2 × 1,000 numerical array, no header | Two coordinate sequences | Reference-path inspection |
+| Component | Definition |
+| --- | --- |
+| Observation (10 values) | Lap progress, speed (km/h), world x/y/z position, lap-invalid flag, lap count, previous lap progress, heading error relative to the reference path, distance from the reference path |
+| Action (2 values, each in [-1, 1]) | Combined throttle/brake (positive = throttle, negative = brake) and steering |
+| Reward (baseline) | `cos(θ) − \|sin(θ)\| − \|distance from reference path\| + speed / max_speed`, where θ is the heading error (ACRL's `_get_reward_5`) |
+| Episode end | Lap complete (progress ≥ 0.99 or lap count > 1), or 1,000 steps |
+| Step time | About 42 ms in our runs (not fixed; see [3.3](#33-log-artifacts)) |
 
-The CSV files contain related records and should not be counted as independent datasets. Equal row counts don't guarantee that the rows line up. Before combining them, we will check timestamp alignment between `car.csv` and `lap.csv` and verify how the derived rows in `tick.csv` correspond to those records.
+### 2.2 Model
 
-The files don't include steering or pedal inputs, rewards, or full state–action–next-state transitions. They are useful for an initial audit but can't be used directly for behavioral cloning.
+| Component | Configuration |
+| --- | --- |
+| Policy (actor) | MLP, 10 → 256 → 256 (ReLU), outputting the mean and log standard deviation of a Gaussian; actions squashed with tanh |
+| Critics | Two Q-networks, each an MLP of 12 (state + action) → 256 → 256 (ReLU) → 1 |
+| Target networks | Copies of both critics, updated by Polyak averaging |
+| Parameters | About 208,000 in total (policy ~70,000; each critic ~69,000), computed from the layer sizes |
 
-### Access Instructions and Provenance
+Source: [core.py](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/core.py). We kept the network small on purpose: compute is limited, and the interventions we plan change the reward or the inputs, not the architecture.
 
-1. Open the [ACRL repository](https://github.com/Jurredr/ACRL).
-2. Select **Code → Download ZIP**, or clone the repository.
-3. Look inside `track_data/`.
-4. To collect new data from the simulator, follow the upstream [setup instructions](https://github.com/Jurredr/ACRL#readme).
+### 2.3 Training Setup
 
-- Upstream commit used for experiments: (To be added: pinned commit SHA)
-- Local code version: (To be added: project commit or release)
-- Data snapshot and audit script/notebook: (To be added: file paths or links)
+**Loss functions** ([sac.py](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/sac.py))
 
-### Shared Implementation Fixes
- 
-While setting up ACRL, we found several problems in the original code (upstream commit `ff1b5dd`) and fixed them before running any comparison. All experimental conditions will use the fixed code.
- 
-**Coordinates and vectors** (`ac_environment.py`, `utils/track_spline.py`)
+- **Critic loss:** mean squared error between each Q-network's estimate and the soft Bellman target  
+  `y = r + γ (1 − done) [ min(Q1_target, Q2_target)(s', a') − α log π(a' | s') ]`, with `a'` sampled from the current policy. The two critic losses are summed.
+- **Policy loss:** `mean( α log π(a | s) − min(Q1, Q2)(s, a) )`, which pushes the policy toward actions with high Q-value while keeping its entropy up.
+
+**Optimizer and hyperparameters** (as set in `main.py`; **(To be added for CI2: confirm the overnight run used these values, e.g. from its `config.json`)**)
+
+| Hyperparameter | Value |
+| --- | --- |
+| Optimizer | Adam, separate optimizers for the policy and the critics |
+| Learning rate | 1e-3 (both) |
+| Discount γ | 0.99 |
+| Entropy coefficient α | 0.2 (fixed, not auto-tuned) |
+| Polyak (target update) | 0.999 |
+| Batch size | 32 |
+| Replay buffer size | 1,000,000 |
+| Random-action steps (`start_steps`) | 10,000 |
+| Updates start after | 1,000 steps |
+| Update schedule | Every 50 steps, 50 gradient updates (1 update per environment step on average) |
+| Max episode length | 1,000 steps |
+| Seed | 0 (the default; one seed so far) |
+| `max_speed` / steering range | 180 km/h / ±270° |
+
+**"Splits" in this setting.** In reinforcement learning, the training data is generated by the agent itself, so there is no train/validation/test split of a dataset. We separate data by *how* it is collected:
+
+| Role | What it is | Status |
+| --- | --- | --- |
+| Training | Episodes driven with the stochastic policy while learning, stored in the replay buffer | Done (Section 3.1) |
+| Validation | Separate episodes with the deterministic policy and learning turned off, used to choose checkpoints and settings | **(To be added for CI2: run and report)** |
+| Test | Held-out evaluation episodes of the final selected policy, never used for tuning and never added to the replay buffer | **(To be added for CI2: run and report)** |
+
+### 2.4 Changes from Upstream ACRL
+
+We based our code on upstream commit `ff1b5dd` and fixed several problems before training. All runs and conditions use the fixed code.
 
 | Problem in the original | Our fix | Why it matters |
 | --- | --- | --- |
-| Heading error and distance from the centerline were computed from the car's world x and y coordinates. In Assetto Corsa, y is the vertical axis and the track lies in the x–z plane; the public position sample (-131.0, -0.4, -822.3) shows y staying close to zero. | Use x and z, matching the reference path. | Both values are observations and reward terms. With y, the agent was being told how far it was from the centerline using its height instead of its position on the track. |
-| The velocity used for heading error was built from `velocity[0]` and `velocity[1]`, which are the horizontal x and vertical y components. | Use `velocity[0]` and `velocity[2]` (x and z). | The heading error now compares the car's direction of travel on the track with the direction of the reference path. |
-| The heading calculation divided the path direction and the velocity by their lengths without checking for zero. A stopped car has zero velocity, so the result became NaN. | Return a heading error of 0 when the car is nearly stopped (speed below 1e-3) or the path direction is degenerate. | Every episode starts from a standstill, so this case came up at each reset, and NaN values could reach the replay buffer. One side effect is that a stopped car now gets the full heading reward, so we will watch for an agent that learns to stay still. |
+| Heading error and distance from the reference path used the car's world x and **y**. In Assetto Corsa, y is the vertical axis; the track lies in the x–z plane (the public position sample (-131.0, -0.4, -822.3) shows y near zero). | Use x and z. | Both values are observations and reward terms. With y, the agent was told how far it was from the line using its height. |
+| The velocity for heading error used `velocity[0]` and `velocity[1]` (horizontal x and vertical y). | Use `velocity[0]` and `velocity[2]`. | Heading error now compares the car's direction of travel on the track with the reference path. |
+| Heading error divided by the velocity's length without checking for zero, giving NaN for a stopped car. | Return heading error 0 when the car is nearly stopped. | Every episode starts from a standstill, so NaN could reach the replay buffer. **This fix contributed to the main failure in [4.1](#41-the-policy-learned-to-stand-still).** |
+| The in-game app added its library paths after the imports that need them. | Add paths first; write import errors to `acrl_error.txt`. | The app loads reliably, and failures are easy to find. |
 
-### New Collection Schema
+Code version: (To be added for CI2: commit or release of the code used for the overnight run)
 
-| Field | Meaning |
-| --- | --- |
-| `observation`, `next_observation` | State vectors before and after the action |
-| `action` | Throttle/brake and steering commands actually sent, each in [-1, 1] |
-| `reward` | Reward under the recorded experiment configuration |
-| `terminated`, `truncated` | Episode-ending and time-limit flags, stored separately |
-| `end_reason` | Completion, driving failure, timeout, or infrastructure error |
-| `timestamp`, `control_interval` | Timing information with documented units |
-| `session_id`, `episode_id`, `seed` | Identifiers for grouping and reproducibility |
-| `config_id` | Link to the car, track, policy, reward, and runtime settings |
+## 3. Results and Evaluation
 
-Final field definitions, units, storage format, and exclusion rules: (To be added: link to the data dictionary and preprocessing rules)
+### 3.1 Training Runs
 
-Actual collected volume: So far, we have episode-level summaries for 5 pilot episodes (5,000 environment steps) and 570 overnight episodes (570,000 environment steps); see Section 3. Whether the 5,000 underlying transitions were saved to a file still needs to be checked. (To be added: numbers of sessions, episodes, and transitions, and recording duration, for the main collection)
+| Run | Episodes | Environment steps | Wall-clock time | Purpose |
+| --- | --- | --- | --- | --- |
+| Pilot | 5 | 5,000 | ~2.7 min | Check that the training loop runs end to end |
+| Overnight | 570 | 570,000 | ~6.9 h | First real training run |
 
-### Licensing and Checkpoints
+Both logs are clean at the episode-summary level: every value is finite, every episode is exactly 1,000 steps, and `TotalSteps` rises by 1,000 per episode. This says nothing about individual telemetry samples. (To be added for CI2: repository links to both `progress.txt` files)
 
-The upstream repository is released under the [GPL-3.0 license](https://github.com/Jurredr/ACRL/blob/master/LICENSE). We will credit the original authors and note separately which terms apply to the code and which apply to the data.
+**Pilot (first five episodes).** With `start_steps=10000`, every action in these 5,000 steps was random, so they serve as a preliminary random-action baseline. Net progress was 0.08–0.28% of a lap per episode, and every recorded step reward was negative.
 
-Data usage/sharing notes: (To be added: findings on any separate public-data usage terms and the sharing scope for newly collected data)
+| Episode | Episode reward | Final progress | Net progress | Avg. speed (km/h) |
+| --- | --- | --- | --- | --- |
+| 1 | -4,130 | 0.23% | 0.08% | 1.11 |
+| 2 | -3,482 | 0.43% | 0.28% | 1.77 |
+| 3 | -2,030 | 0.35% | 0.18% | 1.38 |
+| 4 | -2,617 | 0.40% | 0.24% | 1.77 |
+| 5 | -4,304 | 0.35% | 0.20% | 1.52 |
 
-We did not find a ready-to-use trained ACRL checkpoint, so we plan to train from scratch. If we later bring in an outside checkpoint, we will check where it came from, how it was trained, and whether it is compatible, and record it as a change to the plan.
-
-## 3. Data Audit and EDA
-
-### Preliminary Measurements
-
-These numbers describe the public files, not an agent we trained.
-
-| Item | Observed value | Implication |
-| --- | --- | --- |
-| Recorded time points | 15,681 | Small dataset; consecutive rows are highly correlated |
-| Duration | About 523.3 seconds | Roughly 8.7 minutes of driving |
-| Recording interval | Median 33 ms; range 2–220 ms | Sampling is irregular |
-| Lap count | 1 throughout the record | The record appears to cover one lap, rather than multiple independent attempts |
-| Lap progress | About 0.000108–0.999985 | Covers almost the full lap |
-| Raw `speed` column | Mean 32.79; range 17.25–65.76 | Units need to be confirmed before reading this as physical speed |
-| Invalid-lap flag | `False` in all 15,681 rows | No invalid-lap examples |
-| Steering/throttle/brake labels | Absent | We need to collect new data to study actions |
-
-An invalid flag of `False` everywhere doesn't prove the car stayed on track the whole time. We will track off-track events separately in our own evaluations.
-
-Sources: [car.csv](https://github.com/Jurredr/ACRL/blob/master/track_data/car.csv), [lap.csv](https://github.com/Jurredr/ACRL/blob/master/track_data/lap.csv), and [tick.csv](https://github.com/Jurredr/ACRL/blob/master/track_data/tick.csv).
-
-### Representative Sample
-
-The first row of the public data (rounded):
-
-| Field | Value |
-| --- | --- |
-| Lap progress | 0.000108 |
-| World position | (-131.023, -0.411, -822.346) |
-| Raw speed value | 27.807 |
-| Invalid-lap flag | False |
-
-Additional representative rows, covering a straight and a corner, with units and selection criteria: (To be added: a table of actual data samples)
-
-### Pilot Run: First Five Episodes
-
-To check that the training loop runs end to end, we started a new ACRL SAC run with `start_steps=10000` and ran it for five episodes (5,000 environment steps, about 2.7 minutes of wall-clock time). ACRL writes one summary row per episode to `progress.txt`. (To be added: car, track, and remaining configuration used for this run; code version; repository link to `progress.txt`)
-
-| Episode | Episode reward | Steps | Final progress | Net progress | Avg. speed (km/h) | Wall-clock time / logged step |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | -4,130 | 1,000 | 0.23% | 0.08% | 1.11 | 21 ms |
-| 2 | -3,482 | 1,000 | 0.43% | 0.28% | 1.77 | 35 ms |
-| 3 | -2,030 | 1,000 | 0.35% | 0.18% | 1.38 | 35 ms |
-| 4 | -2,617 | 1,000 | 0.40% | 0.24% | 1.77 | 34 ms |
-| 5 | -4,304 | 1,000 | 0.35% | 0.20% | 1.52 | 37 ms |
-
-Progress is a fraction of one lap. "Final progress" is ACRL's `EpDist`, the lap progress when the episode ended. "Net progress" is the average per-step change in progress times the number of steps. Forward and backward movement cancel out in this value, so it is not the total distance driven. Speed is the averaged observation value, which the [environment code](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/ac_environment.py) records in km/h without normalization. The units of the public `speed` column still need to be confirmed separately.
-
-**Log quality check:** The log has 5 rows and 17 columns, every value is finite, and `TotalSteps` increases by exactly 1,000 per episode. This only checks the episode summaries. It does not tell us anything about the quality of individual telemetry samples or transitions.
-
-**What the numbers show**
-
-- **All actions were random.** ACRL samples actions uniformly at random for the first 10,000 steps, so every action in this run was random. The networks were being updated during the run, but the policy was not yet choosing actions. Differences between episodes reflect random actions, starting states, and timing rather than learning, so episode 3's higher reward does not mean the policy improved. We treat this run as a preliminary random-action baseline. It comes from a single run, and a trained policy is not guaranteed to beat it.
-- **Progress was small.** Net progress was only 0.08–0.28% of a lap per episode.
-- **Every recorded step reward was negative.** The highest single-step reward across all five episodes was -0.49.
-- **Reward and progress were only loosely related.** Across the five episodes, average speed tracked net progress closely (r ≈ 0.97), while episode reward and net progress were weakly related (r ≈ 0.31). This is not surprising, since ACRL's active reward is computed from heading-error terms, distance from the centerline, and normalized speed, with no direct progress term. (The speed normalization happens only inside the reward; the observed speed in the table is still in km/h.) Five episodes are not enough to tell which term matters most, so we will log each reward component separately. This is directly relevant to experiment A.
-- **Progress sometimes decreased.** The minimum per-step change in progress was negative in every episode. The car may have rolled backward, or the progress value reported by the telemetry may fluctuate. We will need per-step data to tell which.
-
-**Artifacts in the log**
-
-- **`EpDist` is not distance driven.** It is the lap progress at the end of the episode. Working backward from the log, each episode appears to start about 0.15–0.16% into the lap, so `EpDist` overstates movement by about that much. This starting value is derived from the log, not measured right after reset. We use net progress instead. `DistHigh` is the running maximum of `EpDist`.
-- **The time column is not the control interval.** `EpTime` starts before the reset and also covers gradient updates and saving drive data and the model. Episode 1 took 21.5 ms per logged step, while episodes 2–5 averaged 35.1 ms. With `update_after=1000` and `update_every=50`, episode 1 made 50 update calls (all at its last step), while each later episode made 1,000. The extra update work is a likely reason for the gap. Measuring the actual control interval would require a timestamp for each action and observation.
-- **End reasons are not logged.** All five episodes stopped at exactly 1,000 steps, which is consistent with a time limit, but the log does not record why an episode ended. This is one reason our collection schema includes `end_reason`.
-
-**Next steps from the pilot:** continue a single uninterrupted training run past 10,000 cumulative steps so the policy chooses actions; log reward components, end reasons, and per-step timestamps; then plot progress and reward by episode as a learning curve. Restarting resets the step counter, and resuming from a saved model does not currently work (see [Open Issue: Resuming from a Saved Model](#open-issue-resuming-from-a-saved-model)), so any resumed training will be recorded as a separate run segment once that is fixed.
-
-### Overnight Run: 570 Episodes
-
-We then left a single training run going overnight on a team member's Windows laptop. It ran for 570 episodes (570,000 environment steps, about 6.9 hours) and wrote one summary row per episode to `progress.txt`. (To be added: car, track, code version, and configuration for this run; repository link to `progress.txt`)
-
-**What we saw:** after training, the car mostly accelerated briefly and then braked, staying close to its starting position. It never came near completing a lap.
-
-**Log quality check:** 570 rows and 17 columns, every value finite, every episode exactly 1,000 steps, and `TotalSteps` increasing by 1,000 per episode. The absence of NaN values and the size of the step rewards (around -5 rather than hundreds) are consistent with our fixed coordinate and heading code being in use; we still need to confirm the exact code version.
-
-Medians by block of episodes:
+**Overnight run (570 episodes).** Medians by block of episodes:
 
 | Episodes | Actions | Episode reward | Avg. speed (km/h) | Net progress (% of lap) | Episodes with any positive step reward |
 | --- | --- | --- | --- | --- | --- |
@@ -231,140 +199,170 @@ Medians by block of episodes:
 | 401–500 | Policy | -4,717 | 0.82 | 0.09 | 1 / 100 |
 | 501–570 | Policy | -4,932 | 0.81 | 0.10 | 2 / 70 |
 
-"Random" assumes the default `start_steps=10000`, which covers the first 10 episodes. Medians are used because episode rewards vary widely (block standard deviations of 1,100–4,100).
+"Net progress" is the average per-step change in lap progress times the number of steps; forward and backward movement cancel out. "Final progress" (ACRL's `EpDist`) is the lap progress when the episode ended, which includes the ~0.15% the car starts into the lap. Medians are used because episode rewards vary widely.
 
-**What the numbers show**
+**What the training results show**
 
-- **The policy learned to move less.** Median speed fell from about 3.4 km/h during the random phase to about 0.8 km/h by episode 200 and stayed there. Median net progress fell from 0.55% to about 0.09% of a lap. The farthest any episode got was 2.5% of a lap, in episode 9, while actions were still random.
-- **Reward improved slightly while driving got worse.** The median episode reward rose by roughly 10% (from about -5,250 to about -4,750) over the same period in which progress dropped about sixfold. Across all 570 episodes, episode reward was slightly negatively correlated with net progress (r ≈ -0.28), while speed and net progress moved together (r ≈ 0.96). The agent is getting better at the reward, not at driving.
-- **Positive rewards were rare.** Only 16 of 570 episodes contained even one step with a positive reward, so the agent almost never saw an example of reward going up because of driving well.
+- **The policy learned to move less.** Median speed fell from 3.4 km/h in the random phase to about 0.8 km/h by episode 200 and stayed there. Net progress fell from 0.55% to about 0.09% of a lap. The farthest any episode got was 2.5% of a lap, in episode 9, while actions were still random.
+- **Reward improved while driving got worse.** Median episode reward rose by about 10% over the same period that progress fell about sixfold. Across all 570 episodes, reward was slightly negatively correlated with net progress (r ≈ −0.28), while speed and net progress moved together (r ≈ 0.96).
+- **No episode completed a lap,** so lap time, our main metric, is N/A for this baseline. The completion rate is 0%.
 
-**Likely explanation (to be tested):** standing still appears to be a local optimum under the current reward. ACRL's active reward is `cos(θ) - |sin(θ)| - |distance from centerline| + speed / max_speed`. Our zero-speed fix returns a heading error of 0 when the car is nearly stopped, so a stopped car receives the best possible heading score and only pays the centerline-distance penalty, which stays roughly constant if it doesn't move. Driving instead risks large penalties from bad headings and drifting off the line (the worst single step in the run was -22.3), while the speed bonus is small at low speed. We flagged this side effect when making the fix; this run suggests it matters. Other factors, such as where the car starts relative to the reference line or the lack of any progress term, may also contribute. We will need per-step reward components to tell them apart.
+Figures: **(To be added for CI2: learning curves of episode reward, average speed, and net progress by episode, with the end of the random-action phase marked)**
 
-**Candidate fixes.** Each of these would change the reward or the episode setup, so we will treat them as a deliberate design change and apply it to every condition, or study it as experiment C:
+### 3.2 Held-Out Evaluation
 
-- Stop rewarding a stationary car for its heading, for example by giving zero heading reward below a minimum speed or by measuring heading from the car's orientation instead of its velocity.
-- Add a low-speed penalty. The active reward function already takes `weight_lowspeed` and `min_speed` arguments but never uses them, and ACRL's earlier, unused reward functions include low-speed and low-progress penalties we can borrow from.
-- Add a reward for forward progress along the lap.
-- End an episode early when the car stays nearly stopped for too long, and record that as its `end_reason`.
+The numbers above come from training episodes, where the policy is stochastic and still learning. Following our evaluation plan, the baseline still needs a held-out evaluation.
 
-### Open Issue: Resuming from a Saved Model
+| Metric | Random-action baseline | Trained SAC baseline |
+| --- | --- | --- |
+| Valid-lap completion rate | (To be added for CI2) | (To be added for CI2) |
+| Median valid lap time | (To be added for CI2; expected N/A) | (To be added for CI2; expected N/A) |
+| Median net progress per episode (% of lap) | (To be added for CI2) | (To be added for CI2) |
+| Median average speed (km/h) | (To be added for CI2) | (To be added for CI2) |
+| Share of episodes ending with the car stationary | (To be added for CI2) | (To be added for CI2) |
 
-We could not resume training from the overnight run's saved model. Loading a model calls `logger.restore_state(load_path)`, but `EpisodeLogger` in `logx.py` never implements that method, so the run crashes before training starts.
+Protocol: **(To be added for CI2: number of evaluation episodes, deterministic policy with learning off, the checkpoint evaluated, and initial conditions)**
 
-Adding the missing method alone will not be enough:
+Because loading saved models was broken during the overnight run ([4.2](#42-saved-models-could-not-be-loaded)), this evaluation needs the loading fix first, or a short evaluation phase at the end of a training run.
 
-- `restore_state` is passed the run folder path, not a dictionary of saved logger state, and the logger never saves its episode statistics in the first place. There is nothing to restore, so the call can simply be removed.
-- `main.py` requires the load path to be a folder, but `sac.py` then passes that folder directly to `torch.load`, which expects the `model.pt` file inside it.
-- `torch.load` must be called with `weights_only=False` on PyTorch 2.6 and later, because ACRL saves the whole model object rather than only its weights. We will only load model files we created ourselves.
-- Even after loading works, ACRL only saves the networks. The replay buffer, optimizer state, and step counter start over, so a resumed run is a new run segment that starts from trained weights, not a seamless continuation.
+### 3.3 Log Artifacts
 
-(To be added: the fix, the commit containing it, and a test showing a resumed run acting with the loaded policy from its first step)
+- **`EpDist` is not distance driven.** It is the lap progress at the end of the episode, and each episode starts about 0.15–0.16% into the lap (derived from the log). We use net progress instead.
+- **Step time is not fixed.** Wall-clock time per logged step was 21–92 ms across the two runs (median ~42 ms in the overnight run). It also includes gradient updates and saving, so it is not the control interval. Measuring the control interval would need per-step timestamps.
+- **End reasons and reward components are not logged.** We can't tell from the log why an episode ended or which reward term dominated. We are adding both.
 
-### Figures and Quality Checks to Complete
+### 3.4 Qualitative Examples
 
-The following analyses are planned but have not yet been completed.
+**(To be added for CI2: two or three concrete examples, such as a clip or screenshots of the trained car launching and braking to a stop, an x–z trajectory plot of a random-phase episode next to a late-training episode, and the per-step reward of one late episode)**
 
-| Artifact | Evidence to add |
-| --- | --- |
-| Track trajectory | (To be added: an x–z trajectory plot, travel direction, coverage, and interpretation) |
-| Speed distribution or speed by track progress | (To be added: a plot with verified units and key observations) |
-| Sampling-interval distribution | (To be added: a plot and summary showing the frequency of delays) |
-| Section coverage | (To be added: sample counts by track section and an interpretation of coverage bias) |
-| Pilot progress and reward curves | (To be added: net progress and episode reward by episode for the five-episode pilot) |
-| Overnight learning curves | (To be added: episode reward, average speed, and net progress by episode for the 570-episode run, with the end of the random-action phase marked) |
-| Data-quality table | (To be added: results for missing values, duplicates, NaNs, constant columns, non-monotonic timestamps, and timestamp alignment across files) |
+## 4. Failure Analysis
 
-In continuous control, what matters is how well the data covers different states and actions, rather than class balance as in classification. A single lap can't tell us how robust a policy is to different driving styles, starting conditions, or failures, and thousands of consecutive rows from that lap are not thousands of independent attempts.
+### 4.1 The Policy Learned to Stand Still
 
-### Failure Analysis and Infrastructure Checks
+**What happened.** After the overnight run, the car mostly accelerated briefly and then braked, staying near its starting position (Section 3.1).
 
-For A, we will look at the size of each reward component and check whether the agent gives up progress to avoid penalties. For B, we will compare behavior across track sections. For C, we will group repeated failures into types such as running wide at corner entry, steering oscillation, and getting stuck.
+**Why.** Under the baseline reward, standing still is a safe local optimum:
 
-We will log infrastructure problems separately: failed resets, communication errors, and invalid observations. Before comparing any training runs, we will check coordinate consistency, normalization at zero speed, CPU/GPU handling, saving and loading, and control timing. Saving and loading already failed once: see [Open Issue: Resuming from a Saved Model](#open-issue-resuming-from-a-saved-model). The stationary behavior in the overnight run is our first concrete "getting stuck" failure for C.
+| Reward term | Stopped car | Moving car |
+| --- | --- | --- |
+| Heading `cos θ − \|sin θ\|` | **Always +1**, because our zero-speed fix returns heading error 0 | +1 down to −1.41 |
+| Distance from the reference path | Constant | Grows if the car drifts |
+| Speed `speed / 180` | 0 | Small at low speed (0.06 at 10 km/h) |
 
-Common fixes and verification results: (To be added: a list of fixes, verification results, and the commit containing them)
+Driving risks large penalties from bad headings and drifting (the worst step in the run was −22), while the upside at low speed is tiny. Nothing in the reward pays for forward progress, and the episode never ends early for being stuck. The agent optimized the reward correctly; the optimum was to stay still. We had flagged this side effect when making the zero-speed fix.
 
-Relevant code: [environment](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/ac_environment.py), [path generation](https://github.com/Jurredr/ACRL/blob/master/track_data/path.py), and [networks](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/core.py).
+**Confirmation test:** (To be added for CI2: average per-step reward with no input vs. constant light throttle for ~100 steps; if standing still scores higher, the cause is confirmed)
 
-## 4. Evaluation Plan
+**Fix.** Rewrite the reward so standing still is never the best option: give heading credit only while moving, add a scaled progress term, add a graded low-speed penalty, cap the distance penalty, and end episodes where the car stays stuck (with a penalty large enough that getting stuck on purpose doesn't pay). We checked the revised reward on hand-built situations: it ranks stopped < creeping < 30 km/h < 150 km/h, and reversing scores no better than stopping.
 
-### Metrics Aligned with the Main Goal
+### 4.2 Saved Models Could Not Be Loaded
+
+**What happened.** We could not resume training from the overnight run's model.
+
+**Why.** Upstream ACRL never finished its load path:
+
+1. It calls `logger.restore_state(load_path)`, which is not implemented in `EpisodeLogger`. Implementing it would not help: it receives a folder path rather than saved state, and the logger never saves episode statistics, so there is nothing to restore.
+2. `main.py` requires a folder, but `sac.py` passes that folder straight to `torch.load`, which needs the `model.pt` file inside it.
+3. PyTorch 2.6+ needs `weights_only=False` because ACRL saves the whole model object.
+
+**Fix.** Remove the `restore_state` call, load `<folder>/model.pt` with `weights_only=False` on the CPU, act with the loaded policy from the first step, and log the resumed run to a new folder. We had written these fixes earlier, but they were not in the copy of the code that ran overnight. Even with the fix, only the networks are saved; the replay buffer, optimizers, and step counter start over, so a resumed run counts as a separate run segment.
+
+### 4.3 Episodes Are Too Short to Finish a Lap
+
+**What happened.** Episodes are capped at 1,000 steps, about 42 seconds at the observed step time.
+
+**Why it matters.** A lap of Silverstone 1967 in this car takes roughly 85–95 seconds, or about 2,000+ steps. **(To be added for CI2: reference lap time and its source)** Even a perfect policy could not complete a lap, so the lap-complete condition could never trigger and our main metric could not be measured.
+
+**Fix.** Raise the limit to about 4,000 steps, or base it on wall-clock time since step time varies.
+
+### 4.4 The Other ACRL Reward Functions Have the Same Problem
+
+Before switching rewards, we reviewed ACRL's four unused reward functions. None works as is:
+
+| Function | Rewards | Main problems |
+| --- | --- | --- |
+| `_get_reward_1` | Speed | Crashes at 10% of a lap (empty `progress_weights` list); a flat −0.8 below ~40 km/h treats 0 and 30 km/h the same; after the first off-track moment, every remaining step is −1 |
+| `_get_reward_2` | Absolute lap position + speed | Same problems, and it pays for *where* the car is rather than how far it moved |
+| `_get_reward_3` | Change in progress | Same problems, and the progress reward is ~2,000× smaller than the penalties |
+| `_get_reward_4` | Change in progress + speed | Same shared problems; the progress term is negligible without scaling |
+
+The flat penalty below ~40 km/h is especially relevant: like the baseline reward, it gives the agent no reason to speed up from a standstill. We rewrote all five reward functions to fix these issues and will use the revised progress + speed reward (based on `_get_reward_4`) as the starting point.
+
+### 4.5 Next Steps Toward Check-In 3
+
+1. Put the loading fix into the code we run and confirm a resumed run acts with the loaded policy from its first step.
+2. Log reward components, end reasons, and per-step timestamps.
+3. Run the confirmation test for 4.1.
+4. Raise the episode limit and switch to the revised reward with stuck termination. This changes the baseline, so it will apply to every condition (or become experiment A/C itself).
+5. Retrain with at least 3 seeds and run the held-out evaluation (Section 3.2).
+6. Once the baseline completes laps, fix the lap-time target and start the chosen intervention.
+
+## 5. Data and Evaluation Plan (from Check-In 1)
+
+### 5.1 Public Data
+
+The public [track_data directory](https://github.com/Jurredr/ACRL/tree/master/track_data) (GPL-3.0, like the rest of ACRL) contains:
+
+| File | Size and structure | Main contents |
+| --- | --- | --- |
+| `car.csv` | 15,681 rows, 17 columns | Speed, RPM, velocity, acceleration, position, timestamps |
+| `lap.csv` | 15,681 rows, 10 columns | Lap progress, lap count, timing, sector, invalid flag |
+| `tick.csv` | 15,681 rows, 3 columns | Lap location, world location, velocity |
+| `spline_points.csv` | 2 × 1,000 array | Reference path coordinates (used by our environment) |
+
+The CSVs describe the same recording of roughly one lap (about 523 seconds, sampled every 33 ms on median, 2–220 ms range) and should not be counted as independent datasets. They contain no steering or pedal inputs or rewards, so they support an audit but not behavioral cloning. The invalid flag is `False` in every row, which doesn't prove the car stayed on track. Raw `speed` (mean 32.8) needs its units confirmed.
+
+Audit figures (trajectory, speed distribution, sampling intervals, section coverage, data-quality table): (To be added)
+
+### 5.2 Metrics
 
 | Role | Measure |
 | --- | --- |
-| Primary if efficiency is selected | Environment steps to reach the preset lap-time and completion-rate target |
-| Primary if efficacy is selected | Median valid lap time after a fixed training budget |
-| Reliability requirement | Valid-lap completion rate and its change from the baseline |
+| Primary (efficiency) | Environment steps to reach the preset lap-time and completion-rate target |
+| Primary (efficacy) | Median valid lap time after a fixed training budget |
+| Reliability | Valid-lap completion rate and its change from the baseline |
 | Learning diagnostics | Rates of reaching one sector, two sectors, and a full lap; progress before failure |
-| Failure diagnostics | Number and duration of off-track events, and where failures keep happening |
-| Control behavior | Size and frequency of steering changes |
-| Computational cost | Gradient updates and wall-clock training time |
+| Failure diagnostics | Off-track events, stuck episodes, and where failures happen |
+| Cost | Gradient updates and wall-clock training time |
 
-We will always report lap times alongside completion rates, so a model that sets a few fast laps but fails most attempts doesn't look better than it is.
+Lap times are always reported with completion rates. A run that never hits the target is reported as **not reached within budget**; a run with no valid laps has lap time **N/A**.
 
-### Outcome Definitions
+### 5.3 Protocol
 
-| Outcome | Definition to finalize |
+| Item | Plan |
 | --- | --- |
-| Valid completion | A real timed lap, confirmed by the finish line or lap count and the validity flag; (To be added: rules for timing the start and finish and determining lap validity) |
-| Driving failure | (To be added: failure conditions and thresholds for stopping, collisions, wrong-way driving, and other cases) |
-| Off-track event | (To be added: used telemetry, duration thresholds, and rules for grouping consecutive events) |
-| Timeout | (To be added: maximum steps and maximum wall-clock duration) |
-| Infrastructure error | (To be added: detection, exclusion, and rerun rules, with error counts reported separately) |
+| Training seeds | At least 3 independent seeds per condition; (To be added: final list) |
+| Evaluation interval | (To be added: in environment steps) |
+| Validation / test episodes | (To be added: counts) |
+| Evaluation actions | Deterministic policy, learning off |
+| Checkpoint selection | (To be added: final checkpoint or validation-based rule) |
 
-Reaching nearly 100% progress is not enough to count as a valid lap. We will also separate warm-up or post-reset driving from the timed evaluation lap.
+Every condition uses the same budget, update schedule, shared fixes, and evaluation setup. When reward functions differ across conditions, we compare driving outcomes rather than raw rewards.
 
-### Training, Validation, and Test Protocol
+### 5.4 Success Criteria
 
-Training, validation (for tuning), and final testing will use separate sessions. We won't use test results to pick rewards, hyperparameters, or checkpoints, and evaluation data will never go into the training replay buffer.
-
-| Protocol item | Planned value |
+| Criterion | Value or rule to finalize |
 | --- | --- |
-| Training seeds | We aim for at least 3 independent training seeds per condition; (To be added: the final seed list and number of runs) |
-| Evaluation interval | (To be added: evaluation frequency in environment steps) |
-| Validation episodes per checkpoint | (To be added: number of episodes) |
-| Final test episodes per trained model | (To be added: number of episodes) |
-| Evaluation actions | Deterministic policy actions with learning turned off |
-| Initial conditions | (To be added: fixed and varied conditions, and the distinction between validation and test conditions) |
-| Checkpoint selection | (To be added: a final-checkpoint or validation-based selection rule) |
-| Efficiency target confirmation | (To be added: confirmation rules, including any requirement to sustain the target across consecutive evaluations) |
+| Target lap time (efficiency) | (To be added: set after the revised baseline completes laps) |
+| Minimum valid-lap completion rate | (To be added) |
+| Meaningful improvement | (To be added: in steps or lap time) |
+| Acceptable completion-rate decrease | (To be added) |
 
-For efficiency, we will run validation evaluations on a fixed checkpoint schedule and then check the selected policy on held-out test runs. Because we only evaluate at checkpoints, we will report the schedule's resolution instead of claiming to know the exact step where the agent improved.
+A negative result is still worth reporting: a fair experiment with a clear account of its limits is a useful outcome.
 
-If a run never hits the target, we will report it as **not reached within budget**, rather than dropping it or counting the budget limit as its time. If a run completes no valid laps, its lap time will be listed as **N/A** alongside its completion and progress metrics.
+## Progress Video
 
-### Controlled Comparisons and Reporting
+**(To be added for CI2: link to the ~5-minute progress video showing a real training run, the learning curves, and the stationary-car failure)**
 
-Every condition will use the same interaction budget, update schedule, shared fixes, and evaluation setup. We will also record control intervals, since the same number of steps can mean a different amount of driving if timing varies. Any timing differences between conditions will be reported as a limitation.
+## Milestones
 
-- **A:** Change only the chosen penalty weight.
-- **B:** Keep the architecture fixed. If we normalize inputs, compute the statistics from training data and apply them before masking. Keep preprocessing frozen during evaluation.
-- **C:** Build the failure hypothesis from validation data, then test the fix on separate evaluation runs.
-
-When reward functions differ across conditions, we will compare shared driving outcomes rather than raw cumulative rewards. We will report results for each training seed along with the spread across seeds and examples of typical failures. Running many evaluation episodes on one trained model is not a replacement for training with multiple seeds.
-
-Result tables, uncertainty summaries, and failure examples: (To be added: actual experimental results and analysis)
-
-## 5. Planned Neural Approach for Check-In 2
-
-We will build on the existing [SAC implementation](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/sac.py), keeping the model small to limit compute costs and changing one factor at a time to make the comparison easier to interpret.
-
-| Component | Initial plan |
-| --- | --- |
-| Input | Default 10-dimensional state: progress, speed, 3D position, invalid-lap flag, lap count, previous progress, heading error, and centerline distance |
-| Policy network | MLP with two 256-unit hidden layers and a squashed Gaussian action distribution |
-| Critics | Two Q-networks taking state and action as input, each with two 256-unit hidden layers |
-| Output | Two continuous actions: combined throttle/brake and steering |
-| Training | SAC from scratch with a replay buffer and target networks |
-| Preprocessing | (To be added: whether normalization is used and how its statistics are collected and frozen) |
-| Initial intervention | (To be added: the selected experiment and exact intervention values) |
-| Hyperparameters | (To be added: a configuration file specifying fixed learning rate, batch size, entropy coefficient, update schedule, and other settings) |
-
-Architecture source: [core.py](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/core.py).
-
-For Check-In 2, we aim to have a working baseline and one comparison condition trained on a small, equal budget, with real learning curves or a documented account of how the agent fails. A non-neural probe is optional, and we don't plan to use a larger architecture.
-
+| Stage | Deliverable | Deadline |
+| --- | --- | --- |
+| Check-In 2 | Working SAC baseline, training results, failure analysis | (To be added) |
+| Revised baseline | Loading fix, revised reward, longer episodes, completed laps | (To be added) |
+| Check-In 3 | Baseline vs. one intervention, multiple seeds, held-out evaluation | (To be added) |
+| Final evaluation | Frozen test results, uncertainty, failure analysis, limitations | (To be added) |
 
 ## AI Disclosure
-Claude (Anthropic) has been used for grammar improvement on README and code debugging idea.
+
+Claude (Anthropic) has been used for grammar improvement on README and code debugging ideas.
