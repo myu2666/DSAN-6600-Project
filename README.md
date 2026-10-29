@@ -6,8 +6,6 @@ We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implem
 
 **Status (Check-In 2):** Our SAC baseline trains end to end in Assetto Corsa. We have a five-episode pilot, one overnight baseline run (570 episodes), one run with a revised reward and early termination for stuck episodes (189 episodes), and a 61-episode continuation of that run resumed from its saved model. The baseline learned to stand still. The revised reward stopped that collapse, and resuming from a saved model now works, but the car still does not get further around the lap. This check-in documents the baseline, what it produced, why it fails, and what we will change for Check-In 3 to get the car around a full lap.
 
-Items marked **(To be added for CI2: ...)** are still needed for this submission. Items marked (To be added: ...) are planned for later check-ins.
-
 ## Check-In 2 at a Glance
 
 | Rubric item | Where to look | Status |
