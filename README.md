@@ -30,7 +30,7 @@ Our goals come in two stages:
 | Stage | Goal | How we measure it |
 | --- | --- | --- |
 | **1. Complete a lap (main goal)** | The agent drives one full, valid lap of Silverstone 1967 without help. | Valid-lap completion rate in held-out evaluation; environment steps until the first valid lap |
-| **2. Catch the built-in AI (stretch goal)** | Once the agent completes laps reliably, close the gap to Assetto Corsa's built-in AI in the same car on the same track. | Median valid lap time compared with the built-in AI's lap of **1:25.454** **(To be added for CI2: confirm the exact time and that the session conditions match ours)** |
+| **2. Catch the built-in AI (stretch goal)** | Once the agent completes laps reliably, close the gap to Assetto Corsa's built-in AI in the same car on the same track. | Median valid lap time compared with the built-in AI's lap of **1:25.454** |
 
 Everything we change before Stage 2 serves Stage 1. In practice that means adjusting the reward, analyzing why episodes fail, and fixing whatever stops the car from getting around the track. A faster lap only counts once the car can finish laps reliably, so lap times are always reported together with the completion rate.
 
@@ -49,7 +49,7 @@ We will start with A, guided by C: the CI2 baseline's main failure comes from th
 | Decision | Current plan |
 | --- | --- |
 | Main goal | Complete one full, valid lap (Stage 1) |
-| First intervention | Revised reward (A); **(To be added for CI2: confirm the team agrees)** |
+| First intervention | Revised reward (A) |
 | Stage 2 trigger | (To be added: the completion rate at which we move on to lap time, e.g. a share of held-out episodes) |
 
 ### 1.2 Scope
