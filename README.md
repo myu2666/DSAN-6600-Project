@@ -152,8 +152,8 @@ Source: [core.py](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/cor
 | Role | What it is | Status |
 | --- | --- | --- |
 | Training | Episodes driven with the stochastic policy while learning, stored in the replay buffer | Done (Section 3.1) |
-| Validation | Separate episodes with the deterministic policy and learning turned off, used to choose checkpoints and settings | **(To be added for CI2: run and report)** |
-| Test | Held-out evaluation episodes of the final selected policy, never used for tuning and never added to the replay buffer | **(To be added for CI2: run and report)** |
+| Validation | Separate episodes with the deterministic policy and learning turned off, used to choose checkpoints and settings | **(To be added for CI3: run and report)** |
+| Test | Held-out evaluation episodes of the final selected policy, never used for tuning and never added to the replay buffer | **(To be added for CI3: run and report)** |
 
 ### 2.4 Changes from Upstream ACRL
 
@@ -166,8 +166,6 @@ We based our code on upstream commit `ff1b5dd` and fixed several problems before
 | Heading error divided by the velocity's length without checking for zero, giving NaN for a stopped car. | Return heading error 0 when the car is nearly stopped. | Every episode starts from a standstill, so NaN could reach the replay buffer. **This fix contributed to the main failure in [4.1](#41-the-policy-learned-to-stand-still).** |
 | The in-game app added its library paths after the imports that need them. | Add paths first; write import errors to `acrl_error.txt`. | The app loads reliably, and failures are easy to find. |
 | Loading a saved model crashed (see [4.2](#42-saved-models-could-not-be-loaded)). | In `sac.py`: load `<run folder>/model.pt` with `weights_only=False` on the CPU, set `start_steps` to 0 when resuming, and always save `config.json`. | Training can continue from a saved model, and held-out evaluation of a saved model becomes possible. |
-
-Code version: (To be added for CI2: commit or release of the code used for the overnight run)
 
 ## 3. Results and Evaluation
 
@@ -275,11 +273,11 @@ The numbers above come from training episodes, where the policy is stochastic an
 
 | Metric | Random-action baseline | Trained SAC baseline |
 | --- | --- | --- |
-| Valid-lap completion rate | (To be added for CI2) | (To be added for CI2) |
-| Median valid lap time | (To be added for CI2; expected N/A) | (To be added for CI2; expected N/A) |
-| Median net progress per episode (% of lap) | (To be added for CI2) | (To be added for CI2) |
-| Median average speed (km/h) | (To be added for CI2) | (To be added for CI2) |
-| Share of episodes ending with the car stationary | (To be added for CI2) | (To be added for CI2) |
+| Valid-lap completion rate | (To be added) | (To be added) |
+| Median valid lap time | (To be added; expected N/A) | (To be added; expected N/A) |
+| Median net progress per episode (% of lap) | (To be added) | (To be added) |
+| Median average speed (km/h) | (To be added) | (To be added) |
+| Share of episodes ending with the car stationary | (To be added) | (To be added) |
 
 Protocol: **(To be added for CI2: number of evaluation episodes, deterministic policy with learning off, the checkpoint evaluated, and initial conditions)**
 
