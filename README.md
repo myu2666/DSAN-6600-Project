@@ -311,8 +311,6 @@ Loading saved models now works ([4.2](#42-saved-models-could-not-be-loaded)), so
 
 Driving risks large penalties from bad headings and drifting (the worst step in the run was −22), while the upside at low speed is tiny. Nothing in the reward pays for forward progress, and the episode never ends early for being stuck. The agent optimized the reward correctly; the optimum was to stay still. We had flagged this side effect when making the zero-speed fix.
 
-**Confirmation test:** (To be added for CI2: average per-step reward with no input vs. constant light throttle for ~100 steps; if standing still scores higher, the cause is confirmed)
-
 **Fix.** Rewrite the reward so standing still is never the best option: give heading credit only while moving, add a scaled progress term, add a graded low-speed penalty, cap the distance penalty, and end episodes where the car stays stuck (with a penalty large enough that getting stuck on purpose doesn't pay). We checked the revised reward on hand-built situations: it ranks stopped < creeping < 30 km/h < 150 km/h, and reversing scores no better than stopping. In the revised run (Section 3.1) this stopped the collapse into standing still, but it did not make the car drive further; see [4.5](#45-the-revised-reward-still-makes-getting-stuck-pay).
 
 ### 4.2 Saved Models Could Not Be Loaded
