@@ -530,13 +530,13 @@ Every condition uses the same budget, update schedule, shared fixes, and evaluat
 
 | Stage | Deliverable | Deadline |
 | --- | --- | --- |
-| Check-In 2 | Working SAC baseline, training results, failure analysis |
-| Revised baseline | Loading fix (done), revised reward, longer episodes (first attempt done: Section 3.1) |
-| Stage 1 | First valid lap, then a reliable completion rate |
-| Check-In 3 | Baseline vs. revised reward, multiple seeds, held-out evaluation |
-| Stage 2 (stretch) | Full timed lap compared with the built-in AI's lap re-recorded on our tires (1:25.454 was on faster tires) |
-| Final evaluation | Frozen test results, uncertainty, failure analysis, limitations |
+| Check-In 2 | Working SAC baseline, training results, failure analysis |10/28/2026|
+| Revised baseline | Loading fix (done), revised reward, longer episodes (first attempt done: Section 3.1) |TBD|
+| Stage 1 | First valid lap, then a reliable completion rate |TBD|
+| Check-In 3 | Baseline vs. revised reward, multiple seeds, held-out evaluation |TBD|
+| Stage 2 (stretch) | Full timed lap compared with the built-in AI's lap re-recorded on our tires (1:25.454 was on faster tires) |TBD|
+| Final evaluation | Frozen test results, uncertainty, failure analysis, limitations |TBD|
 
 ## AI Disclosure
 
-Claude (Anthropic) has been used for grammar improvement on README and code debugging ideas.
+Claude (Anthropic) has been used for grammar improvement and formatting help on the README and code debugging ideas.
