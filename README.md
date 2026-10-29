@@ -13,10 +13,9 @@ Items marked **(To be added for CI2: ...)** are still needed for this submission
 | Rubric item | Where to look | Status |
 | --- | --- | --- |
 | Neural baseline | [2. Neural Baseline](#2-neural-baseline-sac) | SAC runs end to end; training setup documented |
-| Results + evaluation | [3. Results and Evaluation](#3-results-and-evaluation) | Training-run results and learning curves done; held-out evaluation **(To be added for CI2)** |
+| Results + evaluation | [3. Results and Evaluation](#3-results-and-evaluation) | Training-run results and learning curves done; held-out evaluation |
 | Failure analysis | [4. Failure Analysis](#4-failure-analysis) | Six failures with evidence, causes, and fixes (model loading now fixed); next steps toward CI3 |
-| Repo / write-up | [1.3 Repository and How to Run](#13-repository-and-how-to-run) | Layout and run steps; final layout **(To be added for CI2)** |
-| Progress video | [Progress Video](#progress-video) | **(To be added for CI2)** |
+| Repo / write-up | [1.3 Repository and How to Run](#13-repository-and-how-to-run) | Layout and run steps; final layout |
 
 **Key result:** the baseline is still far from Stage 1 (completing a lap). Over 570 training episodes, the policy learned to move *less* (median speed fell from 3.4 to 0.8 km/h) while its reward improved slightly. The network learned what the reward asked for. The reward asked for the wrong thing. A revised reward kept the car moving (median speed held at 2–3 km/h instead of collapsing), but every episode still ended with the car stuck, and the farthest it got (2.4% of a lap) is no better than before. Resuming that run from its saved model for another 61 episodes brought it back to the same level, not beyond it.
 
@@ -65,8 +64,6 @@ One car, one track, no opponents, fixed driving conditions.
 | Training budget so far | 5,000 steps (pilot), 570,000 steps (overnight baseline, ~6.9 hours), 119,138 steps (revised reward, ~1.8 hours), and 29,900 steps (revised reward resumed, ~0.5 hours) |
 
 ### 1.3 Repository and How to Run
-
-**(To be added for CI2: confirm the final layout below matches the submitted repository, including where logs, figures, and notebooks live.)**
 
 ```
 ACRL_modified_code/
@@ -458,10 +455,6 @@ Every condition uses the same budget, update schedule, shared fixes, and evaluat
 | Meaningful improvement between conditions | (To be added: in completion rate, steps to first lap, or lap time) |
 
 A negative result is still worth reporting: a fair experiment with a clear account of its limits is a useful outcome.
-
-## Progress Video
-
-**(To be added for CI2: link to the ~5-minute progress video showing a real training run, the learning curves, and the stationary-car failure)**
 
 ## Milestones
 
