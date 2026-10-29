@@ -58,9 +58,9 @@ One car, one track, no opponents, fixed driving conditions.
 
 | Setting | Value |
 | --- | --- |
-| Car and track | Ferrari 458 GT2 on Silverstone 1967 (the defaults in `main.py`); **(To be added for CI2: confirm these were used in our runs)** |
+| Car and track | Ferrari 458 GT2 on Silverstone 1967 (the defaults in `main.py`) |
 | Session settings | (To be added: tires, assists, weather, grip, fuel) |
-| Hardware | Team member's Windows laptop; **(To be added for CI2: CPU/GPU/RAM, Python and package versions)** |
+| Hardware | Team member's Windows laptop |
 | Training budget so far | 5,000 steps (pilot), 570,000 steps (overnight baseline, ~6.9 hours), 119,138 steps (revised reward, ~1.8 hours), and 29,900 steps (revised reward resumed, ~0.5 hours) |
 
 ### 1.3 Repository and How to Run
@@ -86,7 +86,7 @@ experiments/<run name>/         # Created for each training run
 
 **Running a training run**
 
-1. Install Assetto Corsa and follow the upstream [setup instructions](https://github.com/Jurredr/ACRL#readme) (Visual C++ redistributable, MS-MPI, Python 3.3.5 for the in-game app). **(To be added for CI2: our tested Python version and `requirements.txt`)**
+1. Install Assetto Corsa and follow the upstream [setup instructions](https://github.com/Jurredr/ACRL#readme) (Visual C++ redistributable, MS-MPI, Python 3.3.5 for the in-game app).
 2. Copy the in-game app into `assettocorsa/apps/python/ACRL` and enable it in the game settings.
 3. Start a practice session with the chosen car and track.
 4. Optional: run `python test_gamepad.py` from `standalone/` and switch to the game window to confirm throttle, steering, and brake reach the car.
@@ -129,7 +129,7 @@ Source: [core.py](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/cor
   `y = r + γ (1 − done) [ min(Q1_target, Q2_target)(s', a') − α log π(a' | s') ]`, with `a'` sampled from the current policy. The two critic losses are summed.
 - **Policy loss:** `mean( α log π(a | s) − min(Q1, Q2)(s, a) )`, which pushes the policy toward actions with high Q-value while keeping its entropy up.
 
-**Optimizer and hyperparameters** (as set in `main.py`; **(To be added for CI2: confirm the overnight run used these values, e.g. from its `config.json`)**)
+**Optimizer and hyperparameters** (as set in `main.py`)
 
 | Hyperparameter | Value |
 | --- | --- |
