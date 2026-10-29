@@ -4,7 +4,7 @@ Semester Project for DSAN 6600: Deep Learning and Neural Networks
 
 We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implementation for Assetto Corsa, to train an agent that can drive a full, valid lap of a race track. If it gets there, our next target is the lap time set by Assetto Corsa's built-in AI on the same car and track.
 
-**Status (Check-In 2):** Our SAC baseline trains end to end in Assetto Corsa. We have a five-episode pilot, one overnight baseline run (570 episodes), and one run with a revised reward and early termination for stuck episodes (189 episodes). The baseline learned to stand still. The revised run stopped that collapse, but the car still does not get further around the lap. This check-in documents the baseline, what it produced, why it fails, and what we will change for Check-In 3 to get the car around a full lap.
+**Status (Check-In 2):** Our SAC baseline trains end to end in Assetto Corsa. We have a five-episode pilot, one overnight baseline run (570 episodes), one run with a revised reward and early termination for stuck episodes (189 episodes), and a 61-episode continuation of that run resumed from its saved model. The baseline learned to stand still. The revised reward stopped that collapse, and resuming from a saved model now works, but the car still does not get further around the lap. This check-in documents the baseline, what it produced, why it fails, and what we will change for Check-In 3 to get the car around a full lap.
 
 Items marked **(To be added for CI2: ...)** are still needed for this submission. Items marked (To be added: ...) are planned for later check-ins.
 
@@ -14,11 +14,11 @@ Items marked **(To be added for CI2: ...)** are still needed for this submission
 | --- | --- | --- |
 | Neural baseline | [2. Neural Baseline](#2-neural-baseline-sac) | SAC runs end to end; training setup documented |
 | Results + evaluation | [3. Results and Evaluation](#3-results-and-evaluation) | Training-run results and learning curves done; held-out evaluation **(To be added for CI2)** |
-| Failure analysis | [4. Failure Analysis](#4-failure-analysis) | Five failures with evidence, causes, and fixes; next steps toward CI3 |
+| Failure analysis | [4. Failure Analysis](#4-failure-analysis) | Six failures with evidence, causes, and fixes (model loading now fixed); next steps toward CI3 |
 | Repo / write-up | [1.3 Repository and How to Run](#13-repository-and-how-to-run) | Layout and run steps; final layout **(To be added for CI2)** |
 | Progress video | [Progress Video](#progress-video) | **(To be added for CI2)** |
 
-**Key result:** the baseline is still far from Stage 1 (completing a lap). Over 570 training episodes, the policy learned to move *less* (median speed fell from 3.4 to 0.8 km/h) while its reward improved slightly. The network learned what the reward asked for. The reward asked for the wrong thing. A revised reward kept the car moving (median speed held at 2–3 km/h instead of collapsing), but every episode still ended with the car stuck, and the farthest it got (2.4% of a lap) is no better than before.
+**Key result:** the baseline is still far from Stage 1 (completing a lap). Over 570 training episodes, the policy learned to move *less* (median speed fell from 3.4 to 0.8 km/h) while its reward improved slightly. The network learned what the reward asked for. The reward asked for the wrong thing. A revised reward kept the car moving (median speed held at 2–3 km/h instead of collapsing), but every episode still ended with the car stuck, and the farthest it got (2.4% of a lap) is no better than before. Resuming that run from its saved model for another 61 episodes brought it back to the same level, not beyond it.
 
 ## 1. Project Overview
 
@@ -62,7 +62,7 @@ One car, one track, no opponents, fixed driving conditions.
 | Car and track | Ferrari 458 GT2 on Silverstone 1967 (the defaults in `main.py`); **(To be added for CI2: confirm these were used in our runs)** |
 | Session settings | (To be added: tires, assists, weather, grip, fuel) |
 | Hardware | Team member's Windows laptop; **(To be added for CI2: CPU/GPU/RAM, Python and package versions)** |
-| Training budget so far | 5,000 steps (pilot), 570,000 steps (overnight baseline, ~6.9 hours), and 119,138 steps (revised reward, ~1.8 hours) |
+| Training budget so far | 5,000 steps (pilot), 570,000 steps (overnight baseline, ~6.9 hours), 119,138 steps (revised reward, ~1.8 hours), and 29,900 steps (revised reward resumed, ~0.5 hours) |
 
 ### 1.3 Repository and How to Run
 
@@ -93,10 +93,10 @@ experiments/<run name>/         # Created for each training run
 2. Copy the in-game app into `assettocorsa/apps/python/ACRL` and enable it in the game settings.
 3. Start a practice session with the chosen car and track.
 4. Optional: run `python test_gamepad.py` from `standalone/` and switch to the game window to confirm throttle, steering, and brake reach the car.
-5. Run `python main.py` from `standalone/`. It asks whether to load a previous model and for an experiment name, then trains.
+5. Run `python main.py` from `standalone/`. It asks whether to load a previous model and for an experiment name, then trains. To resume, answer `y`, give the run folder (for example `experiments/reward_check_2`), and enter a **new** experiment name; reusing the old name overwrites that run's `progress.txt` and `model.pt`.
 6. Results go to `experiments/<run name>/`: `progress.txt` (one row per episode), `config.json`, `model.pt`, and `drive_data.json`.
 
-Resuming from a saved model does not work yet in the code we ran; see [4.2](#42-saved-models-could-not-be-loaded).
+Resuming from a saved model works as of our latest code; see [4.2](#42-saved-models-could-not-be-loaded).
 
 ## 2. Neural Baseline (SAC)
 
@@ -143,7 +143,7 @@ Source: [core.py](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/cor
 | Polyak (target update) | 0.999 |
 | Batch size | 32 |
 | Replay buffer size | 1,000,000 |
-| Random-action steps (`start_steps`) | 10,000 |
+| Random-action steps (`start_steps`) | 10,000 for a new run; 0 when resuming from a saved model |
 | Updates start after | 1,000 steps |
 | Update schedule | Every 50 steps, 50 gradient updates (1 update per environment step on average) |
 | Max episode length | 1,000 steps (baseline runs); 4,000 steps (revised run) |
@@ -168,6 +168,7 @@ We based our code on upstream commit `ff1b5dd` and fixed several problems before
 | The velocity for heading error used `velocity[0]` and `velocity[1]` (horizontal x and vertical y). | Use `velocity[0]` and `velocity[2]`. | Heading error now compares the car's direction of travel on the track with the reference path. |
 | Heading error divided by the velocity's length without checking for zero, giving NaN for a stopped car. | Return heading error 0 when the car is nearly stopped. | Every episode starts from a standstill, so NaN could reach the replay buffer. **This fix contributed to the main failure in [4.1](#41-the-policy-learned-to-stand-still).** |
 | The in-game app added its library paths after the imports that need them. | Add paths first; write import errors to `acrl_error.txt`. | The app loads reliably, and failures are easy to find. |
+| Loading a saved model crashed (see [4.2](#42-saved-models-could-not-be-loaded)). | In `sac.py`: load `<run folder>/model.pt` with `weights_only=False` on the CPU, set `start_steps` to 0 when resuming, and always save `config.json`. | Training can continue from a saved model, and held-out evaluation of a saved model becomes possible. |
 
 Code version: (To be added for CI2: commit or release of the code used for the overnight run)
 
@@ -180,8 +181,9 @@ Code version: (To be added for CI2: commit or release of the code used for the o
 | Pilot | 5 | 5,000 | ~2.7 min | Check that the training loop runs end to end |
 | Overnight | 570 | 570,000 | ~6.9 h | First real training run (baseline reward) |
 | Revised reward | 189 | 119,138 | ~1.8 h | Test the revised reward, stuck termination, and 4,000-step limit |
+| Revised reward, resumed | 61 | 29,900 | ~0.5 h | Continue the revised-reward run from its saved model (first test of the loading fix) |
 
-All three logs are clean at the episode-summary level: every value is finite, and `TotalSteps` always equals the sum of episode lengths. In the first two runs, every episode is exactly 1,000 steps. This says nothing about individual telemetry samples. (To be added for CI2: repository links to all three `progress.txt` files)
+All four logs are clean at the episode-summary level: every value is finite, and `TotalSteps` always equals the sum of episode lengths. In the first two runs, every episode is exactly 1,000 steps. This says nothing about individual telemetry samples. (To be added for CI2: repository links to all four `progress.txt` files)
 
 **Pilot (first five episodes).** With `start_steps=10000`, every action in these 5,000 steps was random, so they serve as a preliminary random-action baseline. Net progress was 0.08–0.28% of a lap per episode, and every recorded step reward was negative.
 
@@ -218,7 +220,7 @@ All three logs are clean at the episode-summary level: every value is finite, an
 
 *Episode reward, average speed, and net progress for each of the 570 episodes, with a 20-episode rolling median. The shaded band marks the random-action phase (episodes 1–10). Speed and progress drop once the policy starts choosing actions, while reward stays flat or improves slightly.*
 
-**Revised-reward run (189 episodes).** This run used our rewritten progress + speed reward, ended episodes early when the car stayed nearly stopped for 100 steps, and raised the limit to 4,000 steps. Episodes 1–23 (the first 10,000 steps) used random actions. We read the stuck penalty from the log rather than the config: every episode's lowest step reward is about −40.4, which matches a −40 stuck penalty plus the −0.4 low-speed penalty. **(To be added for CI2: confirm the reward settings from this run's `config.json`)**
+**Revised-reward run (189 episodes).** This run used our rewritten progress + speed reward, ended episodes early when the car stayed nearly stopped for 100 steps, and raised the limit to 4,000 steps. Episodes 1–23 (the first 10,000 steps) used random actions. The run's `config.json` confirms the settings: `reward_id=4`, a −40 stuck penalty, and termination after 100 consecutive steps below 2 km/h. This matches the log, where every episode's lowest step reward is about −40.4 (the stuck penalty plus the −0.4 low-speed penalty).
 
 | Episodes | Actions | Median length (steps) | Stuck at 100 steps | Median speed (km/h) | Median net progress (% of lap) | Farthest (% of lap) | Episodes with any positive step reward |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -249,6 +251,27 @@ Compared with the overnight baseline at the same budget (its first ~119,000 step
 
 *Episode length, average speed, and net progress for each of the 189 episodes, with a 20-episode rolling median. The shaded band marks the random-action phase (episodes 1–23). Unlike the baseline, speed and progress do not fall once the policy takes over, but they do not climb much either.*
 
+**Revised reward, resumed (61 episodes).** We continued the revised-reward run from its saved model (`experiments/reward_check_2` → `experiments/reward_check_2_resume`) with the same reward and settings. Its `config.json` records `load_path=experiments/reward_check_2` and `start_steps=0`, so the loaded policy drove from the first step, and the original run's files were left untouched. As expected, the replay buffer, optimizers, and step counter started over.
+
+| Episodes | Median length (steps) | Stuck at 100 steps | Median speed (km/h) | Median net progress (% of lap) | Farthest (% of lap) |
+| --- | --- | --- | --- | --- | --- |
+| 1–20 | 275 | 3 | 2.3 | 0.13 | 1.3 |
+| 21–40 | 352 | 2 | 3.2 | 0.33 | 1.4 |
+| 41–61 | 623 | 1 | 2.9 | 0.44 | 1.7 |
+| Original run, last 39 episodes (for reference) | 577 | 3 | 3.2 | 0.48 | 2.4 |
+
+Episode 39 is left out of these numbers because it was a false lap completion (see [4.6](#46-reversing-over-the-start-line-counts-as-a-finished-lap)).
+
+**What the resumed run shows**
+
+- **Loading works.** The run started from the saved weights instead of from scratch and without 10,000 random steps.
+- **It dipped at first, then recovered to where the original run ended.** In the first 20 episodes, speed and progress were lower than at the end of the original run. That fits the fresh replay buffer and optimizers: the policy is retrained on a small, new buffer. By episodes 41–61 it was back to about 3 km/h and 0.4% of a lap per episode. Over the whole resumed run, speed and progress are not significantly different from the original run's policy phase (Mann–Whitney p ≈ 0.23 and 0.70).
+- **The underlying problem is unchanged.** Apart from the false lap completion, every episode ended with the car stuck, the average reward per step was negative in every episode (best −0.28), and episode reward still tracked episode length almost exactly (r = −0.99). The farthest progress was 1.7% of a lap.
+
+![Learning curves of the revised-reward run and its resumed continuation](figures/revised_reward_resumed_learning_curves.png)
+
+*The revised-reward run (episodes 1–189) followed by the resumed run, with a 20-episode rolling median for each segment. The dashed line marks the resume. After a short dip, the resumed run returns to the level where the original run ended.*
+
 ### 3.2 Held-Out Evaluation
 
 The numbers above come from training episodes, where the policy is stochastic and still learning. Following our evaluation plan, the baseline still needs a held-out evaluation.
@@ -263,14 +286,15 @@ The numbers above come from training episodes, where the policy is stochastic an
 
 Protocol: **(To be added for CI2: number of evaluation episodes, deterministic policy with learning off, the checkpoint evaluated, and initial conditions)**
 
-Because loading saved models was broken during the overnight run ([4.2](#42-saved-models-could-not-be-loaded)), this evaluation needs the loading fix first, or a short evaluation phase at the end of a training run.
+Loading saved models now works ([4.2](#42-saved-models-could-not-be-loaded)), so this evaluation can load a saved model and run it with learning turned off. **(To be added for CI2: an evaluation mode that runs the deterministic policy without updates and without adding to the replay buffer)**
 
 ### 3.3 Log Artifacts
 
 - **`EpDist` is not distance driven.** It is the lap progress at the end of the episode, and each episode starts about 0.15–0.16% into the lap (derived from the log). We use net progress instead.
-- **Step time is not fixed.** Wall-clock time per logged step was 21–92 ms in the first two runs (median ~42 ms in the overnight run) and rose to a median of 56 ms in the revised run, so the same number of steps now covers less driving per training hour. It also includes gradient updates and saving, so it is not the control interval. Measuring the control interval would need per-step timestamps.
+- **Step time is not fixed.** Wall-clock time per logged step was 21–92 ms in the first two runs (median ~42 ms in the overnight run) and rose to a median of 56 ms in the revised run and 61 ms in the resumed run, so the same number of steps now covers less driving per training hour. It also includes gradient updates and saving, so it is not the control interval. Measuring the control interval would need per-step timestamps.
 - **One episode may not have reset properly.** Working backward from the log, episode 141 of the revised run started about 2.2% into the lap instead of the usual ~0.1%, so its 2.4% final progress is not a real gain. We need to check the reset.
-- **End reasons and reward components are not logged.** We can't tell from the log why an episode ended or which reward term dominated. We are adding both.
+- **One episode ended with a false lap completion.** Episode 39 of the resumed run shows progress jumping from about 0.2% to 99% in a single step, and the episode then ended as a completed lap. See [4.6](#46-reversing-over-the-start-line-counts-as-a-finished-lap).
+- **End reasons and reward components are not logged.** The environment now returns an end reason (`lap_complete` or `stuck`) with each step, but `sac.py` does not write it to the log yet. We can't tell from the log why an episode ended or which reward term dominated. We are adding both.
 
 ### 3.4 Qualitative Examples
 
@@ -297,6 +321,8 @@ Driving risks large penalties from bad headings and drifting (the worst step in 
 **Fix.** Rewrite the reward so standing still is never the best option: give heading credit only while moving, add a scaled progress term, add a graded low-speed penalty, cap the distance penalty, and end episodes where the car stays stuck (with a penalty large enough that getting stuck on purpose doesn't pay). We checked the revised reward on hand-built situations: it ranks stopped < creeping < 30 km/h < 150 km/h, and reversing scores no better than stopping. In the revised run (Section 3.1) this stopped the collapse into standing still, but it did not make the car drive further; see [4.5](#45-the-revised-reward-still-makes-getting-stuck-pay).
 
 ### 4.2 Saved Models Could Not Be Loaded
+
+**Status: fixed and verified.** The resumed run in Section 3.1 loaded `experiments/reward_check_2/model.pt`, drove with the loaded policy from its first step, and wrote to a new folder.
 
 **What happened.** We could not resume training from the overnight run's model.
 
@@ -350,15 +376,36 @@ Exploration makes this worse. Throttle and brake share one action axis, so unifo
 2. Make getting stuck clearly worse than driving, for example a stuck penalty of −100 instead of −40, and recheck the discounted comparison above.
 3. Bias the random phase toward the throttle, for example sampling the throttle/brake axis mostly from [−0.2, 1] instead of [−1, 1].
 
-### 4.6 Next Steps Toward Check-In 3
+### 4.6 Reversing Over the Start Line Counts as a Finished Lap
 
-1. Put the loading fix into the code we run and confirm a resumed run acts with the loaded policy from its first step.
-2. Log reward components, end reasons, and per-step timestamps.
-3. Run the confirmation test for 4.1.
-4. Revise the reward so driving earns a positive reward and getting stuck clearly costs more (4.5), and bias early exploration toward the throttle. This changes the baseline, so it will apply to every condition (or become experiment A/C itself).
-5. Check and fix the episode reset (Section 3.3) before the next long run.
-6. Retrain with at least 3 seeds and run the held-out evaluation (Section 3.2).
-7. Once the car completes laps reliably (Stage 1), move on to Stage 2: compare the median valid lap time with the built-in AI's 1:25.454.
+**What happened.** Episode 39 of the resumed run ended as a completed lap after 463 steps, although the car had covered only a tiny part of the track. In one step, lap progress jumped from about 0.002 to 0.99.
+
+**Why.** The car starts just past the start/finish line. If it rolls backward over the line, lap progress wraps from about 0 to about 0.99. The environment's lap check is `lap_done = lap_count > 1.0 or track_progress >= progress_goal`, with `progress_goal = 0.99`, so this counts as finishing the lap. The episode then ends without the −40 stuck penalty: the worst step in that episode was −5.4 (the clipped backward-progress penalty plus the low-speed penalty), compared with about −40.4 in every other episode. The agent did not exploit this yet, but ending an episode by reversing over the line is much cheaper than getting stuck, so it could learn to.
+
+This also corrupts the logs. `EpDist` and `DistHigh` jump to 99%, and a "lap complete" end reason would be reported for a lap that never happened.
+
+**Fix.** Count a lap as complete only when the car reaches the end of the lap going forward, and treat a backward crossing as a failure. In `step()` in `ac_environment.py`:
+
+```python
+prev_progress = observation[7]
+crossed_backward = track_progress - prev_progress > 0.5   # wrapped from ~0 to ~1
+lap_done = lap_count > 1.0 or (track_progress >= progress_goal and not crossed_backward)
+wrong_way = crossed_backward
+terminated = lap_done or stuck or wrong_way
+# ...and add a penalty at least as large as penalty_stuck when wrong_way,
+# with end_reason "wrong_way"
+```
+
+### 4.7 Next Steps Toward Check-In 3
+
+1. ~~Put the loading fix into the code we run and confirm a resumed run acts with the loaded policy from its first step.~~ Done (Section 3.1).
+2. Fix the lap-completion check so reversing over the start line ends the episode as a failure, not a finished lap (4.6).
+3. Log reward components, end reasons, and per-step timestamps.
+4. Run the confirmation test for 4.1.
+5. Revise the reward so driving earns a positive reward and getting stuck clearly costs more (4.5), and bias early exploration toward the throttle. This changes the baseline, so it will apply to every condition (or become experiment A/C itself).
+6. Check and fix the episode reset (Section 3.3) before the next long run.
+7. Retrain with at least 3 seeds and run the held-out evaluation (Section 3.2), loading each saved model with learning turned off.
+8. Once the car completes laps reliably (Stage 1), move on to Stage 2: compare the median valid lap time with the built-in AI's 1:25.454.
 
 ## 5. Data and Evaluation Plan (from Check-In 1)
 
@@ -421,7 +468,7 @@ A negative result is still worth reporting: a fair experiment with a clear accou
 | Stage | Deliverable | Deadline |
 | --- | --- | --- |
 | Check-In 2 | Working SAC baseline, training results, failure analysis | (To be added) |
-| Revised baseline | Loading fix, revised reward, longer episodes (first attempt done: Section 3.1) | (To be added) |
+| Revised baseline | Loading fix (done), revised reward, longer episodes (first attempt done: Section 3.1) | (To be added) |
 | Stage 1 | First valid lap, then a reliable completion rate | (To be added) |
 | Check-In 3 | Baseline vs. revised reward, multiple seeds, held-out evaluation | (To be added) |
 | Stage 2 (stretch) | Lap time compared with the built-in AI's 1:25.454 | (To be added) |
