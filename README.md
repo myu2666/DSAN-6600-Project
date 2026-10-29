@@ -530,12 +530,12 @@ Every condition uses the same budget, update schedule, shared fixes, and evaluat
 
 | Stage | Deliverable | Deadline |
 | --- | --- | --- |
-| Check-In 2 | Working SAC baseline, training results, failure analysis | (To be added) |
-| Revised baseline | Loading fix (done), revised reward, longer episodes (first attempt done: Section 3.1) | (To be added) |
-| Stage 1 | First valid lap, then a reliable completion rate | (To be added) |
-| Check-In 3 | Baseline vs. revised reward, multiple seeds, held-out evaluation | (To be added) |
-| Stage 2 (stretch) | Full timed lap compared with the built-in AI's lap re-recorded on our tires (1:25.454 was on faster tires) | (To be added) |
-| Final evaluation | Frozen test results, uncertainty, failure analysis, limitations | (To be added) |
+| Check-In 2 | Working SAC baseline, training results, failure analysis |
+| Revised baseline | Loading fix (done), revised reward, longer episodes (first attempt done: Section 3.1) |
+| Stage 1 | First valid lap, then a reliable completion rate |
+| Check-In 3 | Baseline vs. revised reward, multiple seeds, held-out evaluation |
+| Stage 2 (stretch) | Full timed lap compared with the built-in AI's lap re-recorded on our tires (1:25.454 was on faster tires) |
+| Final evaluation | Frozen test results, uncertainty, failure analysis, limitations |
 
 ## AI Disclosure
 
