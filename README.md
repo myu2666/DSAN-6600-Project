@@ -83,7 +83,7 @@ track_data/spline_points.csv    # Reference path (from upstream ACRL)
 experiments/<run name>/         # Created for each training run
 ```
 
-This repository currently holds the write-up and its supporting files: `README.md`, `figures/` (all plots in this README), and `logs/<run name>/progress.txt` (the episode logs analyzed in Section 3). The code itself is not in this repository yet. To run it, you need our modified ACRL code (the layout above) plus `track_data/spline_points.csv` from [upstream ACRL](https://github.com/Jurredr/ACRL/tree/master/track_data), placed next to `standalone/`, because `main.py` reads `../track_data/spline_points.csv`. (To be added: our code in this repository, or a link to it)
+This repository currently holds the write-up and its supporting files: `README.md`, `figures/` (all plots in this README), and `logs/<run name>/progress.txt` (the episode logs analyzed in Section 3). The code itself is not in this repository yet. To run it, you need our modified ACRL code (the layout above) plus `track_data/spline_points.csv` from [upstream ACRL](https://github.com/Jurredr/ACRL/tree/master/track_data), placed next to `standalone/`, because `main.py` reads `../track_data/spline_points.csv`.
 
 **Running a training run**
 
