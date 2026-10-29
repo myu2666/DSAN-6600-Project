@@ -42,7 +42,7 @@ How we plan to get to Stage 1:
 | **B. Test the observations** | Absolute coordinates may help on a single track, but we don't know how much they actually contribute. | Mask the absolute coordinates while keeping the network architecture and other inputs unchanged. (Lower priority until the car completes laps.) |
 | **C. Analyze failures** | Repeated failures, such as getting stuck or running off at the same corner, waste training steps and keep the car from finishing. | Find where and why episodes fail, then test one targeted fix at a time. |
 
-We will start with A, guided by C: the CI2 baseline's main failure comes from the reward.
+We will start with A, guided by C. Our results so far point to the reward as a likely main cause of the CI2 baseline's failure, so testing that comes first.
 
 | Decision | Current plan |
 | --- | --- |
@@ -109,7 +109,7 @@ There is no fixed dataset. The agent collects its own training data by driving, 
 | Reward (baseline) | `cos(θ) − \|sin(θ)\| − \|distance from reference path\| + speed / max_speed`, where θ is the heading error (ACRL's `_get_reward_5`) |
 | Reward (revised run) | Our rewritten progress + speed reward (`reward_id=4`): scaled progress along the lap, a small speed term, a graded low-speed penalty, and a one-time off-track penalty, plus a penalty when an episode ends because the car is stuck (see [3.1](#31-training-runs)) |
 | Episode end | Baseline: lap complete (progress ≥ 0.99 or lap count > 1), or 1,000 steps. Revised run: also ends when the car stays nearly stopped for 100 steps; limit raised to 4,000 steps |
-| Step time | About 42 ms in our runs (not fixed; see [3.3](#33-log-artifacts)) |
+| Step time | Median about 42 ms per logged step in the overnight baseline, 56–61 ms in the later runs; this is wall-clock time including training overhead, not a fixed control interval (see [3.3](#33-log-artifacts)) |
 
 ### 2.2 Model
 
@@ -299,10 +299,10 @@ The numbers above come from training episodes, where the policy is stochastic an
 | Actions | Deterministic: the policy's mean action (`deterministic=True`). Random baseline: uniform over [−1, 1] for both axes, seed 0. |
 | Episodes | 20 per policy |
 | Initial conditions | The standard reset (respawn at the start line, then the scripted launch), the same as in training |
-| Environment | Same as the revised-reward runs: `reward_id=4`, stuck termination (100 steps below 2 km/h), 4,000-step limit |
-| Output | One CSV row per episode: steps, reward, end reason, lap completed, lap valid, lap time, net and farthest progress, average and maximum speed, wall time |
+| Environment | Same as the revised-reward runs: `reward_id=4`, stuck termination (100 steps below 2 km/h), 4,000-step limit. After 99% progress the environment reports the lap as done instead of stuck, so the script keeps its own stuck counter with the same rule; a car that stops near the end of the lap still ends as stuck. |
+| Output | One CSV row per episode: steps, reward, end reason, lap completed, lap valid, approximate lap time, net and farthest progress, average and maximum speed, wall time |
 
-**What counts as a valid lap.** The training environment ends an episode at 99% progress, which is not the same as crossing the finish line. In evaluation, the script ignores that and keeps driving until the game's lap count goes up. A lap counts as valid only if the car crosses the finish line this way, the game never marks the lap invalid, and progress never jumps by more than half a lap in one step (backward crossings of the start line end the episode as `wrapped_backward`; see [4.6](#46-reversing-over-the-start-line-counts-as-a-finished-lap)). The lap time is the game's own current-lap timer just before the crossing, which the in-game app already sends but the training environment does not use.
+**What counts as a valid lap.** The training environment ends an episode at 99% progress, which is not the same as crossing the finish line. In evaluation, the script ignores that and keeps driving until the game's lap count goes up. A lap counts as valid only if the car crosses the finish line this way, the game never marks the lap invalid, and progress never jumps by more than half a lap in one step (backward crossings of the start line end the episode as `wrapped_backward`; see [4.6](#46-reversing-over-the-start-line-counts-as-a-finished-lap)). The recorded lap time is approximate: it is the game's current-lap timer at the last sample before the crossing (the in-game app already sends this timer, but the training environment does not use it), so it can be slightly shorter than the real time. The car also starts from a standstill just past the line, so this first crossing is not a full timed lap. Stage 1 only needs the first valid crossing. For Stage 2, we will compare full timed laps using the game's own completed-lap time.
 
 Usage, from `standalone/` with the game running as for training:
 
@@ -352,7 +352,7 @@ Two things stand out. First, every episode starts 4–5 m off the reference line
 
 The driving data shows why the distance term is constant: the car always starts 4–5 m from the reference line, so a car that never moves loses about 4–5 per step from that term alone, close to the observed median step reward of about −4.7. Driving risks large penalties from bad headings and drifting (the worst step in the run was −22), while the upside at low speed is tiny. Nothing in the reward pays for forward progress, and the episode never ends early for being stuck. The car's drift toward standing still is consistent with a reward that favors it, but we have not shown that standing still is the reward's optimum; a direct check is to compare the per-step reward of a car held still with that of a car driven steadily at light throttle for about 100 steps (step 5 in [4.8](#48-next-steps-toward-check-in-3)). We had flagged this side effect when making the zero-speed fix.
 
-**Fix.** Rewrite the reward so standing still is never the best option: give heading credit only while moving, add a scaled progress term, add a graded low-speed penalty, cap the distance penalty, and end episodes where the car stays stuck (with a penalty large enough that getting stuck on purpose doesn't pay). We checked the revised reward on hand-built situations: it ranks stopped < creeping < 30 km/h < 150 km/h, and reversing scores no better than stopping. In the revised run (Section 3.1) the car did not collapse into standing still, but it did not drive further either. That run also added stuck termination and a longer step limit, so the change in behavior can't be credited to the reward alone; see [4.5](#45-the-revised-reward-still-makes-getting-stuck-pay).
+**Fix.** Rewrite the reward so standing still is never the best option: give heading credit only while moving, add a scaled progress term, add a graded low-speed penalty, cap the distance penalty, and end episodes where the car stays stuck (with a penalty large enough that getting stuck on purpose doesn't pay). We checked the revised reward on hand-built situations: it ranks stopped < creeping < 30 km/h < 150 km/h, and reversing scores no better than stopping. In the revised run (Section 3.1) the car did not collapse into standing still, but it did not drive further either. That run also added stuck termination and a longer step limit, so the change in behavior can't be credited to the reward alone; see [4.5](#45-the-revised-reward-may-still-give-too-little-incentive-to-drive).
 
 ### 4.2 Saved Models Could Not Be Loaded
 
@@ -389,11 +389,11 @@ Before switching rewards, we reviewed ACRL's four unused reward functions. None 
 
 The flat penalty below ~40 km/h is especially relevant: like the baseline reward, it gives the agent no reason to speed up from a standstill. We rewrote all five reward functions to fix these issues and will use the revised progress + speed reward (based on `_get_reward_4`) as the starting point.
 
-### 4.5 The Revised Reward Still Makes Getting Stuck Pay
+### 4.5 The Revised Reward May Still Give Too Little Incentive to Drive
 
 **What happened.** In the revised run, every one of the 189 episodes ended because the car got stuck (Section 3.1).
 
-**Why.** Leaving out the final penalty step, the average reward per step was negative in every episode: the median was −0.36, and even the best episode averaged −0.24. So episode reward depends almost entirely on episode length (r = −0.99):
+**Why (hypothesis).** Leaving out the final penalty step, the average reward per step was negative in every episode: the median was −0.36, and even the best episode averaged −0.24. So episode reward depends almost entirely on episode length (r = −0.99):
 
 | Episode type | Median episode reward |
 | --- | --- |
@@ -498,7 +498,7 @@ Audit figures (trajectory, speed distribution, sampling intervals, section cover
 | --- | --- |
 | Stage 1 (main) | Valid-lap completion rate in held-out evaluation; environment steps until the first valid lap |
 | Stage 1 progress (before any lap is completed) | Farthest progress per episode; rates of reaching one sector, two sectors, and a full lap |
-| Stage 2 (stretch) | Median valid lap time, and its gap to the built-in AI's lap time under the same conditions (1:25.454 on faster tires so far) |
+| Stage 2 (stretch) | Median valid lap time, and its gap to the built-in AI's lap time under the same conditions (to be re-recorded on our tires; the current 1:25.454 was set on faster tires) |
 | Failure diagnostics | Stuck episodes, off-track events, and where failures happen |
 | Cost | Gradient updates and wall-clock training time |
 
@@ -534,7 +534,7 @@ Every condition uses the same budget, update schedule, shared fixes, and evaluat
 | Revised baseline | Loading fix (done), revised reward, longer episodes (first attempt done: Section 3.1) | (To be added) |
 | Stage 1 | First valid lap, then a reliable completion rate | (To be added) |
 | Check-In 3 | Baseline vs. revised reward, multiple seeds, held-out evaluation | (To be added) |
-| Stage 2 (stretch) | Lap time compared with the built-in AI's 1:25.454 | (To be added) |
+| Stage 2 (stretch) | Full timed lap compared with the built-in AI's lap re-recorded on our tires (1:25.454 was on faster tires) | (To be added) |
 | Final evaluation | Frozen test results, uncertainty, failure analysis, limitations | (To be added) |
 
 ## AI Disclosure
