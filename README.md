@@ -160,7 +160,15 @@ Source: [core.py](https://github.com/Jurredr/ACRL/blob/master/standalone/sac/cor
 
 ### 2.4 Changes from Upstream ACRL
 
-We based our code on upstream commit `ff1b5dd` and fixed several problems before training. All runs and conditions use the fixed code.
+We based our code on upstream commit `ff1b5dd` and fixed problems as we found them, so the runs in Section 3 use three successive versions of the code:
+
+| Runs | Code used |
+| --- | --- |
+| Pilot, overnight | The coordinate, velocity, zero-speed, and in-game app fixes below; baseline reward (`_get_reward_5`); 1,000-step limit |
+| Revised reward (189 episodes) | The same, plus the rewritten reward mechanism (`reward_id=4`), stuck termination, and the 4,000-step limit |
+| Revised reward, resumed (61 episodes) | The same as the revised run, plus the model-loading fix (last row below) |
+
+From now on, every condition we compare will use the same, latest version.
 
 | Problem in the original | Our fix | Why it matters |
 | --- | --- | --- |
@@ -178,8 +186,8 @@ We based our code on upstream commit `ff1b5dd` and fixed several problems before
 | --- | --- | --- | --- | --- |
 | Pilot | 5 | 5,000 | ~2.7 min | Check that the training loop runs end to end |
 | Overnight | 570 | 570,000 | ~6.9 h | First real training run (baseline reward) |
-| Revised reward | 189 | 119,138 | ~1.8 h | Test the revised reward, stuck termination, and 4,000-step limit |
-| Revised reward, resumed | 61 | 29,900 | ~0.5 h | Continue the revised-reward run from its saved model (first test of the loading fix) |
+| Revised reward | 189 | 119,138 | ~1.8 h | First run after we rewrote the reward mechanism: test the revised reward, stuck termination, and 4,000-step limit |
+| Revised reward, resumed | 61 | 29,900 | ~0.5 h | First run after we also fixed model loading: continue the revised-reward run from its saved model |
 
 All four logs are clean at the episode-summary level: every value is finite, and `TotalSteps` always equals the sum of episode lengths. In the first two runs, every episode is exactly 1,000 steps. This says nothing about individual telemetry samples. Logs: [pilot](logs/demo_1/progress.txt), [overnight](logs/Checkin_3/progress.txt), [revised reward](logs/reward_check_2/progress.txt), [revised reward, resumed](logs/reward_check_2_resume/progress.txt).
 
@@ -218,7 +226,7 @@ All four logs are clean at the episode-summary level: every value is finite, and
 
 *Episode reward, average speed, and net progress for each of the 570 episodes, with a 20-episode rolling median. The shaded band marks the random-action phase (episodes 1–10). Speed and progress drop once the policy starts choosing actions, while reward stays flat or improves slightly.*
 
-**Revised-reward run (189 episodes).** This run used our rewritten progress + speed reward, ended episodes early when the car stayed nearly stopped for 100 steps, and raised the limit to 4,000 steps. Episodes 1–23 (the first 10,000 steps) used random actions. The run's `config.json` confirms the settings: `reward_id=4`, a −40 stuck penalty, and termination after 100 consecutive steps below 2 km/h. This matches the log, where every episode's lowest step reward is about −40.4 (the stuck penalty plus the −0.4 low-speed penalty).
+**Revised-reward run (189 episodes).** This was our first run after rewriting the reward mechanism (Section 2.4). It used our rewritten progress + speed reward, ended episodes early when the car stayed nearly stopped for 100 steps, and raised the limit to 4,000 steps. Episodes 1–23 (the first 10,000 steps) used random actions. The run's `config.json` confirms the settings: `reward_id=4`, a −40 stuck penalty, and termination after 100 consecutive steps below 2 km/h. This matches the log, where every episode's lowest step reward is about −40.4 (the stuck penalty plus the −0.4 low-speed penalty).
 
 | Episodes | Actions | Median length (steps) | Stuck at 100 steps | Median speed (km/h) | Median net progress (% of lap) | Farthest (% of lap) | Episodes with any positive step reward |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -249,7 +257,7 @@ Compared with the overnight baseline at the same budget (its first ~119,000 step
 
 *Episode length, average speed, and net progress for each of the 189 episodes, with a 20-episode rolling median. The shaded band marks the random-action phase (episodes 1–23). Unlike the baseline, speed and progress do not fall once the policy takes over, but they do not climb much either.*
 
-**Revised reward, resumed (61 episodes).** We continued the revised-reward run from its saved model (`experiments/reward_check_2` → `experiments/reward_check_2_resume`) with the same reward and settings. Its `config.json` records `load_path=experiments/reward_check_2` and `start_steps=0`, so the loaded policy drove from the first step, and the original run's files were left untouched. As expected, the replay buffer, optimizers, and step counter started over.
+**Revised reward, resumed (61 episodes).** This was our first run after also fixing model loading ([4.2](#42-saved-models-could-not-be-loaded)). We continued the revised-reward run from its saved model (`experiments/reward_check_2` → `experiments/reward_check_2_resume`) with the same reward and settings. Its `config.json` records `load_path=experiments/reward_check_2` and `start_steps=0`, so the loaded policy drove from the first step, and the original run's files were left untouched. As expected, the replay buffer, optimizers, and step counter started over.
 
 | Episodes | Median length (steps) | Stuck at 100 steps | Median speed (km/h) | Median net progress (% of lap) | Farthest (% of lap) |
 | --- | --- | --- | --- | --- | --- |
@@ -350,15 +358,15 @@ The driving data shows why the distance term is constant: the car always starts 
 
 **Status: fixed and verified.** The resumed run in Section 3.1 loaded `experiments/reward_check_2/model.pt`, drove with the loaded policy from its first step, and wrote to a new folder.
 
-**What happened.** We could not resume training from the overnight run's model.
+**What happened.** Until this fix, we could not resume training from a saved model, including the overnight run's.
 
 **Why.** Upstream ACRL never finished its load path:
 
-1. It calls `logger.restore_state(load_path)`, which is not implemented in `EpisodeLogger`. Our current code adds a `restore_state` method, which stops this crash, but the method does nothing useful: it receives a folder path rather than saved state, and the logger never saves episode statistics, so there is nothing to restore.
+1. It calls `logger.restore_state(load_path)`, which is not implemented in `EpisodeLogger`. Our first attempt added a `restore_state` method, which stops this crash, but the method does nothing useful: it receives a folder path rather than saved state, and the logger never saves episode statistics, so there is nothing to restore.
 2. `main.py` requires a folder, but `sac.py` passes that folder straight to `torch.load`, which needs the `model.pt` file inside it.
 3. PyTorch 2.6+ needs `weights_only=False` because ACRL saves the whole model object.
 
-**Fix** (all in `standalone/sac/sac.py`). Stop relying on `restore_state` and always save the new run's `config.json`; load `<folder>/model.pt` with `weights_only=False` on the CPU; and set `start_steps` to 0 when loading, so the loaded policy acts from the first step instead of taking 10,000 random actions. A resumed run must be given a new experiment name: reusing the original name overwrites its `progress.txt` and `model.pt`. An empty `experiments/Checkin_reload` folder (only an empty `progress.txt`) is consistent with an earlier resume attempt that stopped right after the logger created its folder. We had written these fixes earlier, but they were not in the copy of the code that ran overnight. Even with the fix, only the networks are saved; the replay buffer, optimizers, and step counter start over, so a resumed run counts as a separate run segment.
+**Fix** (all in `standalone/sac/sac.py`). Stop relying on `restore_state` and always save the new run's `config.json`; load `<folder>/model.pt` with `weights_only=False` on the CPU; and set `start_steps` to 0 when loading, so the loaded policy acts from the first step instead of taking 10,000 random actions. A resumed run must be given a new experiment name: reusing the original name overwrites its `progress.txt` and `model.pt`. An empty `experiments/Checkin_reload` folder (only an empty `progress.txt`) is consistent with an earlier resume attempt that stopped right after the logger created its folder. These fixes were not yet in the code for the pilot, overnight, or revised-reward runs; the resumed run is the first to use them. Even with the fix, only the networks are saved; the replay buffer, optimizers, and step counter start over, so a resumed run counts as a separate run segment.
 
 ### 4.3 Episodes Are Too Short to Finish a Lap
 
