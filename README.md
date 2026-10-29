@@ -331,8 +331,8 @@ ACRL saves the car's speed and position for every step (`drive_data.json`). The 
 | Episode | What it shows |
 | --- | --- |
 | **Baseline, episode 415** (trained, typical) | The trained baseline barely moves. Over 1,000 steps the car covers about 5 m, mostly creeping forward under 2 km/h with occasional short bursts. This is the "start and brake" behavior. |
-| **Baseline, episode 9** (random actions) and **revised reward, episode 187** | The farthest the car ever got: about 120 m, or 2.5% of the 4.77 km lap. In both, the car drifts right of the reference line and ends 15–30 m off it, near the first gentle bend. Speed peaks at 63 and 49 km/h, then the car stops. |
-| **Resumed run, episode 39** | The car turns left, rolls backward over the start/finish line, and ends about 36 m behind it. This is the false lap completion from [4.6](#46-reversing-over-the-start-line-counts-as-a-finished-lap). |
+| **Baseline, episode 9** (random actions) and **revised reward, episode 187** | The farthest the car ever got: about 120 m, or 2.5% of the 4.77 km lap. In both, the car drifts to the left of the reference line and ends 15–30 m off it, near the first gentle bend. Speed peaks at 63 and 49 km/h, then the car stops. |
+| **Resumed run, episode 39** | The car rolls backward and to the right, over the start/finish line, and ends about 36 m behind it. This is the false lap completion from [4.6](#46-reversing-over-the-start-line-counts-as-a-finished-lap). |
 
 Two things stand out. First, every episode starts 4–5 m off the reference line, so the car pays a distance penalty from the very first step. Second, the speed traces rise and fall in steps exactly 50 steps apart. That pattern led us to the timing problem in [4.7](#47-the-car-drives-blind-during-gradient-updates).
 
