@@ -13,11 +13,11 @@ Items marked **(To be added for CI2: ...)** are still needed for this submission
 | Rubric item | Where to look | Status |
 | --- | --- | --- |
 | Neural baseline | [2. Neural Baseline](#2-neural-baseline-sac) | SAC runs end to end; training setup documented |
-| Results + evaluation | [3. Results and Evaluation](#3-results-and-evaluation) | Training-run results and learning curves done; held-out evaluation |
-| Failure analysis | [4. Failure Analysis](#4-failure-analysis) | Six failures with evidence, causes, and fixes (model loading now fixed); next steps toward CI3 |
+| Results + evaluation | [3. Results and Evaluation](#3-results-and-evaluation) | Training-run results, learning curves, and qualitative examples done; held-out evaluation protocol and script ready (results in CI3) |
+| Failure analysis | [4. Failure Analysis](#4-failure-analysis) | Seven failures with evidence, causes, and fixes (model loading now fixed); next steps toward CI3 |
 | Repo / write-up | [1.3 Repository and How to Run](#13-repository-and-how-to-run) | Layout and run steps; final layout |
 
-**Key result:** the baseline is still far from Stage 1 (completing a lap). Over 570 training episodes, the policy learned to move *less* (median speed fell from 3.4 to 0.8 km/h) while its reward improved slightly. The network learned what the reward asked for. The reward asked for the wrong thing. A revised reward kept the car moving (median speed held at 2–3 km/h instead of collapsing), but every episode still ended with the car stuck, and the farthest it got (2.4% of a lap) is no better than before. Resuming that run from its saved model for another 61 episodes brought it back to the same level, not beyond it.
+**Key result:** the baseline is still far from Stage 1 (completing a lap). Over 570 training episodes, the policy learned to move *less* (median speed fell from 3.4 to 0.8 km/h) while its reward improved slightly. The network learned what the reward asked for. The reward asked for the wrong thing. A revised reward kept the car moving (median speed held at 2–3 km/h instead of collapsing), but every episode still ended with the car stuck, and the farthest it got (2.4% of a lap) is no better than before. Resuming that run from its saved model for another 61 episodes brought it back to the same level, not beyond it. The driving logs also show that about 60% of the car's movement happens while the agent is paused for gradient updates and cannot see or steer the car ([4.7](#47-the-car-drives-blind-during-gradient-updates)).
 
 ## 1. Project Overview
 
@@ -73,6 +73,7 @@ ACRL_modified_code/
     ├── ac_controller.py     # Sends actions to the game through a virtual Xbox controller (vgamepad)
     ├── ac_socket.py         # Socket connection to the in-game app
     ├── test_gamepad.py      # Checks that controller inputs reach the game (added by us)
+    ├── evaluate.py          # Held-out evaluation without learning (added by us; see 3.2)
     └── sac/
         ├── ac_environment.py   # Gymnasium environment: observations, reward, termination
         ├── sac.py              # SAC agent, replay buffer, training loop
@@ -83,6 +84,8 @@ ACRL_modified_code/
 track_data/spline_points.csv    # Reference path (from upstream ACRL)
 experiments/<run name>/         # Created for each training run
 ```
+
+This repository holds the write-up and its supporting files: `README.md`, `figures/` (all plots in this README), and `logs/<run name>/progress.txt` (the episode logs analyzed in Section 3).
 
 **Running a training run**
 
@@ -178,7 +181,7 @@ We based our code on upstream commit `ff1b5dd` and fixed several problems before
 | Revised reward | 189 | 119,138 | ~1.8 h | Test the revised reward, stuck termination, and 4,000-step limit |
 | Revised reward, resumed | 61 | 29,900 | ~0.5 h | Continue the revised-reward run from its saved model (first test of the loading fix) |
 
-All four logs are clean at the episode-summary level: every value is finite, and `TotalSteps` always equals the sum of episode lengths. In the first two runs, every episode is exactly 1,000 steps. This says nothing about individual telemetry samples. (To be added for CI2: repository links to all four `progress.txt` files)
+All four logs are clean at the episode-summary level: every value is finite, and `TotalSteps` always equals the sum of episode lengths. In the first two runs, every episode is exactly 1,000 steps. This says nothing about individual telemetry samples. Logs: [pilot](logs/demo_1/progress.txt), [overnight](logs/Checkin_3/progress.txt), [revised reward](logs/reward_check_2/progress.txt), [revised reward, resumed](logs/reward_check_2_resume/progress.txt).
 
 **Pilot (first five episodes).** With `start_steps=10000`, every action in these 5,000 steps was random, so they serve as a preliminary random-action baseline. Net progress was 0.08–0.28% of a lap per episode, and every recorded step reward was negative.
 
@@ -279,21 +282,51 @@ The numbers above come from training episodes, where the policy is stochastic an
 | Median average speed (km/h) | (To be added) | (To be added) |
 | Share of episodes ending with the car stationary | (To be added) | (To be added) |
 
-Protocol: **(To be added for CI2: number of evaluation episodes, deterministic policy with learning off, the checkpoint evaluated, and initial conditions)**
+**Protocol (planned; results in CI3).**
 
-Loading saved models now works ([4.2](#42-saved-models-could-not-be-loaded)), so this evaluation can load a saved model and run it with learning turned off. **(To be added for CI2: an evaluation mode that runs the deterministic policy without updates and without adding to the replay buffer)**
+| Item | Plan |
+| --- | --- |
+| Tool | `standalone/evaluate.py`, a separate script that loads a saved model and drives with it. It never runs gradient updates and keeps no replay buffer, so nothing it sees can leak into training. |
+| Policies | The latest saved model (`experiments/reward_check_2_resume/model.pt`) and uniformly random actions as the random-action baseline. Later, the final model of each training seed. |
+| Actions | Deterministic: the policy's mean action (`deterministic=True`). Random baseline: uniform over [−1, 1] for both axes, seed 0. |
+| Episodes | 20 per policy |
+| Initial conditions | The standard reset (respawn at the start line, then the scripted launch), the same as in training |
+| Environment | Same as the revised-reward runs: `reward_id=4`, stuck termination (100 steps below 2 km/h), 4,000-step limit |
+| Output | One CSV row per episode: steps, reward, end reason, lap completed, net and farthest progress, average and maximum speed, wall time |
+
+A lap counts as completed only if the episode ends with `lap_complete` and progress never jumped by more than half a lap in one step; backward crossings of the start line are reported as `wrapped_backward` ([4.6](#46-reversing-over-the-start-line-counts-as-a-finished-lap)).
+
+Usage, from `standalone/` with the game running as for training:
+
+```
+python evaluate.py --model experiments/reward_check_2_resume --episodes 20
+python evaluate.py --random --episodes 20 --seed 0
+```
+
+One caveat: during training the agent loses sight of the car for about a second every 50 steps ([4.7](#47-the-car-drives-blind-during-gradient-updates)), but evaluation has no such pauses. Evaluation therefore measures the policy in conditions it was not trained in.
 
 ### 3.3 Log Artifacts
 
 - **`EpDist` is not distance driven.** It is the lap progress at the end of the episode, and each episode starts about 0.15–0.16% into the lap (derived from the log). We use net progress instead.
 - **Step time is not fixed.** Wall-clock time per logged step was 21–92 ms in the first two runs (median ~42 ms in the overnight run) and rose to a median of 56 ms in the revised run and 61 ms in the resumed run, so the same number of steps now covers less driving per training hour. It also includes gradient updates and saving, so it is not the control interval. Measuring the control interval would need per-step timestamps.
-- **One episode may not have reset properly.** Working backward from the log, episode 141 of the revised run started about 2.2% into the lap instead of the usual ~0.1%, so its 2.4% final progress is not a real gain. We need to check the reset.
+- **One episode did not reset properly.** Working backward from the log, episode 141 of the revised run started about 2.2% into the lap instead of the usual ~0.1%. Its driving data confirms this: the car began about 100 m down the track (x ≈ −27 m) rather than at the start (x ≈ −128 m), so its 2.4% final progress is not a real gain. The reset presses F10 to respawn the car; this press may not have registered. We need to check the reset.
 - **One episode ended with a false lap completion.** Episode 39 of the resumed run shows progress jumping from about 0.2% to 99% in a single step, and the episode then ended as a completed lap. See [4.6](#46-reversing-over-the-start-line-counts-as-a-finished-lap).
+- **Large position jumps every 50 steps.** In the driving data, the car's position jumps by up to several meters exactly when a gradient update happens. See [4.7](#47-the-car-drives-blind-during-gradient-updates).
 - **End reasons and reward components are not logged.** The environment now returns an end reason (`lap_complete` or `stuck`) with each step, but `sac.py` does not write it to the log yet. We can't tell from the log why an episode ended or which reward term dominated. We are adding both.
 
 ### 3.4 Qualitative Examples
 
-**(To be added for CI2: two or three concrete examples, such as a clip or screenshots of the trained car launching and braking to a stop, an x–z trajectory plot of a random-phase episode next to a late-training episode, and the per-step reward of one late episode)**
+ACRL saves the car's speed and position for every step (`drive_data.json`). The figure below plots four episodes chosen to show typical and extreme behavior.
+
+![Trajectories and speed traces of four episodes](figures/qualitative_trajectories.png)
+
+| Episode | What it shows |
+| --- | --- |
+| **Baseline, episode 415** (trained, typical) | The trained baseline barely moves. Over 1,000 steps the car covers about 5 m, mostly creeping forward under 2 km/h with occasional short bursts. This is the "start and brake" behavior. |
+| **Baseline, episode 9** (random actions) and **revised reward, episode 187** | The farthest the car ever got: about 120 m, or 2.5% of the 4.77 km lap. In both, the car drifts right of the reference line and ends 15–30 m off it, near the first gentle bend. Speed peaks at 63 and 49 km/h, then the car stops. |
+| **Resumed run, episode 39** | The car turns left, rolls backward over the start/finish line, and ends about 36 m behind it. This is the false lap completion from [4.6](#46-reversing-over-the-start-line-counts-as-a-finished-lap). |
+
+Two things stand out. First, every episode starts 4–5 m off the reference line, so the car pays a distance penalty from the very first step. Second, the speed traces rise and fall in steps exactly 50 steps apart. That pattern led us to the timing problem in [4.7](#47-the-car-drives-blind-during-gradient-updates).
 
 ## 4. Failure Analysis
 
@@ -309,7 +342,7 @@ Loading saved models now works ([4.2](#42-saved-models-could-not-be-loaded)), so
 | Distance from the reference path | Constant | Grows if the car drifts |
 | Speed `speed / 180` | 0 | Small at low speed (0.06 at 10 km/h) |
 
-Driving risks large penalties from bad headings and drifting (the worst step in the run was −22), while the upside at low speed is tiny. Nothing in the reward pays for forward progress, and the episode never ends early for being stuck. The agent optimized the reward correctly; the optimum was to stay still. We had flagged this side effect when making the zero-speed fix.
+The driving data shows why the distance term is constant: the car always starts 4–5 m from the reference line, so a car that never moves loses about 4–5 per step from that term alone, close to the observed median step reward of about −4.7. Driving risks large penalties from bad headings and drifting (the worst step in the run was −22), while the upside at low speed is tiny. Nothing in the reward pays for forward progress, and the episode never ends early for being stuck. The agent optimized the reward correctly; the optimum was to stay still. We had flagged this side effect when making the zero-speed fix.
 
 **Fix.** Rewrite the reward so standing still is never the best option: give heading credit only while moving, add a scaled progress term, add a graded low-speed penalty, cap the distance penalty, and end episodes where the car stays stuck (with a penalty large enough that getting stuck on purpose doesn't pay). We checked the revised reward on hand-built situations: it ranks stopped < creeping < 30 km/h < 150 km/h, and reversing scores no better than stopping. In the revised run (Section 3.1) this stopped the collapse into standing still, but it did not make the car drive further; see [4.5](#45-the-revised-reward-still-makes-getting-stuck-pay).
 
@@ -389,16 +422,50 @@ terminated = lap_done or stuck or wrong_way
 # with end_reason "wrong_way"
 ```
 
-### 4.7 Next Steps Toward Check-In 3
+### 4.7 The Car Drives Blind During Gradient Updates
+
+**What happened.** In `drive_data.json`, the car's position barely changes between most consecutive steps, then jumps by meters at once. The jumps fall exactly on steps that are multiples of 50 (in global steps after the first 1,000), when SAC runs its gradient updates:
+
+| Run | Steps at update boundaries | Share of all distance driven that happens across those steps | Average move across a boundary step | Average move across other steps |
+| --- | --- | --- | --- | --- |
+| Overnight baseline | 2% | 62% | 0.37 m | 0.005 m |
+| Revised reward | 2% | 59% | 1.07 m | 0.015 m |
+| Revised reward, resumed | 2% | 62% | 1.47 m | 0.018 m |
+
+For example, in episode 9 of the overnight run, the car goes from 4.6 km/h to 23.5 km/h and moves 5.4 m across a single boundary step. Of the top three largest moves in each episode, almost all fall on a boundary.
+
+**Why.** `sac.py` runs 50 gradient updates every 50 environment steps, inside the driving loop. Assetto Corsa does not pause during these updates, and the virtual controller keeps the last action pressed. Judging by step times, each pause lasts about a second: the first overnight episode, before updates began, took ~17 ms per step, while later 1,000-step episodes took ~38–46 ms per step with 20 update pauses each. So the car spends roughly half of the wall-clock time driving with a stale action that the agent cannot see or change. The transition that crosses the pause is stored as one ordinary step, so the agent learns that a single action produced a large, sudden change.
+
+This likely makes learning much harder: the effects of actions are inconsistent, and whatever the agent does right before an update is held for a long time. It also means evaluation without updates ([3.2](#32-held-out-evaluation)) runs in different conditions than training.
+
+**Fix.** Keep the car still while the networks update, or update when the car isn't driving:
+
+1. **Update after each episode (simplest).** Move the update block out of the step loop in `SacAgent.train` and run it once the episode has ended, with as many updates as the episode had steps. This keeps the one-update-per-step ratio and does not change SAC itself.
+2. Alternatively, send a neutral action (`controller.perform(0.0, 0.0)`) before each update block. The car still coasts during the pause, so this only partly helps.
+
+```python
+# in SacAgent.train: delete the update block inside `while not done:`, then
+# add this right after that loop ends
+env.unwrapped.controller.perform(-1.0, 0.0)   # brake and hold while updating
+if total_steps >= self.update_after:
+    for _ in range(ep_steps):
+        self._update(data=self.replay_buffer.sample_batch(self.batch_size))
+env.unwrapped.controller.perform(0.0, 0.0)
+```
+
+The next `env.reset()` then respawns the car as usual.
+
+### 4.8 Next Steps Toward Check-In 3
 
 1. ~~Put the loading fix into the code we run and confirm a resumed run acts with the loaded policy from its first step.~~ Done (Section 3.1).
 2. Fix the lap-completion check so reversing over the start line ends the episode as a failure, not a finished lap (4.6).
-3. Log reward components, end reasons, and per-step timestamps.
-4. Run the confirmation test for 4.1.
-5. Revise the reward so driving earns a positive reward and getting stuck clearly costs more (4.5), and bias early exploration toward the throttle. This changes the baseline, so it will apply to every condition (or become experiment A/C itself).
-6. Check and fix the episode reset (Section 3.3) before the next long run.
-7. Retrain with at least 3 seeds and run the held-out evaluation (Section 3.2), loading each saved model with learning turned off.
-8. Once the car completes laps reliably (Stage 1), move on to Stage 2: compare the median valid lap time with the built-in AI's 1:25.454.
+3. Move gradient updates out of the driving loop so the agent never drives blind (4.7).
+4. Log reward components, end reasons, and per-step timestamps.
+5. Run the confirmation test for 4.1.
+6. Revise the reward so driving earns a positive reward and getting stuck clearly costs more (4.5), and bias early exploration toward the throttle. This changes the baseline, so it will apply to every condition (or become experiment A/C itself).
+7. Check and fix the episode reset (Section 3.3) before the next long run.
+8. Retrain with at least 3 seeds and run the held-out evaluation with `evaluate.py` (Section 3.2).
+9. Once the car completes laps reliably (Stage 1), move on to Stage 2: compare the median valid lap time with the built-in AI's 1:25.454.
 
 ## 5. Data and Evaluation Plan (from Check-In 1)
 
