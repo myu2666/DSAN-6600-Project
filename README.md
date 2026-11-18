@@ -382,6 +382,8 @@ Counts use each episode's farthest progress (`EpFarthest`) and end reason from `
 | **Resumed, episode 33** (ends at 27.8%) | Gets through the first corner at about 40 km/h, accelerates to about 70 km/h down the next section, then stops at the right-hand kink. |
 | **Resumed, episode 53** (61% at the step limit) | The farthest drive so far. It also takes the first corner slowly, but from about 10% of the lap on it runs mostly 20–40 m from the reference line, wide of the track drawn on the map, and the lap is marked invalid. The step limit ends it while it is still moving at about 50 km/h. |
 
+Many of our runs ended at the area at the end of the first turn due to a wall that juts out diagonally at that area. The car then bumps off of that wall just far enough for it to accelerate into the wall again, bump off, and repeart. This behavior also is found in other episodes that end in a crash with the wall/timeout. While this can be solved by fixing our issues with the grass, there are sections of the track that have little to no grass run off and this may be something to note for later. 
+
 ### 6.3 Check-In 2 Failures Now
 
 | CI2 failure | Addressed by | Evidence | Remaining issue |
@@ -413,7 +415,7 @@ Counts use each episode's farthest progress (`EpFarthest`) and end reason from `
 3. Run `evaluate.py` on the random policy, the original CI2 checkpoint, the baseline, and the extension (Section 4.1).
 4. Run the ablation (Section 5).
 5. Look at the 12.5% corner in detail: speed and steering on approach, and whether a look-ahead input would help.
-(To be added: anything else)
+6. Fix reward spread/increase penalty for suboptimal actions (grass, wall hit, reversing unless necessary)  
 
 ## Milestones
 
