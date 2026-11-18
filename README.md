@@ -14,7 +14,7 @@ We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implem
 | Comparison with the CI2 baseline | [4. Comparison with the Baseline](#4-comparison-with-the-baseline) | (To be added) |
 | Ablation / controlled comparison | [5. Ablation](#5-ablation) | (To be added) |
 | Failure analysis | [6. Failure Analysis](#6-failure-analysis) | (To be added) |
-| Progress video (~5 min) | [Progress Video](#progress-video) | (To be added) |
+| Progress video (~5 min) | (To be added: link) | (To be added) |
 | Demo notebook | (To be added: link) | (To be added) |
 | Code | [1.3 Repository and How to Run](#13-repository-and-how-to-run) | (To be added) |
 
@@ -136,39 +136,94 @@ These fixes change the environment or the training loop, so they apply to every 
 
 | | |
 | --- | --- |
-| Extension | (To be added) |
-| Rubric category | (To be added: e.g. different architecture, multimodal input, agentic layer, robustness or data-centric improvement) |
-| What it adds beyond Check-In 2 | (To be added: the new neural component or method, compared with the plain SAC MLP and the bug fixes in 2.3) |
-| Scope | (To be added: what is in and out of this extension) |
+| Extension | Data-centric changes to what SAC learns from: structured exploration in the random phase, and fixed normalization of the observations fed to the policy and critics |
+| Rubric category | Data-centric improvement tied to model behavior |
+| What it adds beyond Check-In 2 | At Check-In 2, the replay buffer was filled with uniform random actions that braked half the time, and the networks received raw inputs on very different scales. The extension changes the data the networks train on and the form in which they see it. The SAC algorithm and the network sizes stay the same. |
+| Scope | In: the random-phase action distribution and input normalization. Out: the reward, the environment, the network architecture, and the bug fixes in [2.3](#23-shared-fixes-since-check-in-2), which apply to every condition. |
 
-**Motivation.** (To be added: the model behavior from Check-In 2 this targets, with a link to the relevant part of check-in-2.md)
+**Motivation.** Two Check-In 2 findings point at the training data rather than at SAC itself:
 
-**Hypothesis.** (To be added: the expected change in a metric from 4.1, under the same budget)
+- **The random phase produced almost no driving.** Throttle and brake share one action axis, so uniform random actions braked half the time, and a new action was drawn every step, so no throttle press lasted long enough to build speed. In the random phase of the revised-reward run, median speed was 2.1 km/h ([CI2 4.5](check-in-2.md#45-the-revised-reward-may-still-give-too-little-incentive-to-drive)). The first 10,001 transitions in the replay buffer therefore contain almost no examples of the car moving at real speed, which leaves the critics little to learn from about driving.
+- **The inputs differ in scale by three orders of magnitude.** Lap progress lies in [0, 1], speed reaches 180 km/h, and the world coordinates reach about ±1,000 m on this track. Fed in raw, the coordinates dominate the first layer of every network.
+
+**Hypothesis.** Under the same budget and shared fixes, the extension raises the speed reached in the random phase and, after the policy takes over, increases net progress and farthest progress per episode and lowers the share of episodes that end stuck, compared with the SAC baseline (shared fixes).
+
+**How the Check-In 3 code changes are split.** The changes made since Check-In 2 that belong to the extension are switched on and off together in `main.py`; everything else applies to every condition.
+
+| Change | Where | Extension or shared fix |
+| --- | --- | --- |
+| Throttle-biased, held random actions | `sac.py`, `main.py` | Extension |
+| Observation normalization | `core.py`, `sac.py`, `ac_environment.py` | Extension |
+| Updates run between episodes, car braked | `sac.py` | Shared fix ([CI2 4.7](check-in-2.md#47-the-car-drives-blind-during-gradient-updates)) |
+| Fixed 50 ms control interval | `ac_environment.py` | Shared fix |
+| Reversing over the start line ends the episode as `wrong_way` | `ac_environment.py` | Shared fix ([CI2 4.6](check-in-2.md#46-reversing-over-the-start-line-counts-as-a-finished-lap)) |
+| Reset check (re-press F10 if the car did not respawn) | `ac_environment.py` | Shared fix ([CI2 3.3](check-in-2.md#33-log-artifacts)) |
+| Stuck penalty −40 → −100 | `main.py` | Shared fix ([CI2 4.5](check-in-2.md#45-the-revised-reward-may-still-give-too-little-incentive-to-drive)) |
+| No `done` flag at the step limit (critic keeps bootstrapping) | `sac.py` | Shared fix |
+| Q-networks actually frozen during the policy update | `sac.py` | Shared fix (bug) |
+| New log columns: end reason, net and farthest progress, step time, update count and time, losses, Q-values | `sac.py` | Shared fix |
+| In-game app: socket and F10 respawn fixes, auto-start, camera lock only outside the pit | `ACRL.py` | Shared fix |
 
 ### 3.2 Design
 
-(To be added: diagram or short description of how the extension connects to the SAC policy and critics)
+Both parts sit at the edges of SAC: one changes which transitions enter the replay buffer, the other changes what the networks see. The policy, the critics, and the SAC updates are unchanged.
+
+```
+random phase (first 10,001 actions):  biased, held random action ─┐
+policy phase:                          policy action (every step) ─┤
+                                                                   ▼
+                                              Assetto Corsa (50 ms per step)
+                                                                   │
+                                     transition (s, a, r, s') ─► replay buffer
+                                                                   │
+                     s ─► (s − center) / scale ─► policy MLP and both critic MLPs
+```
+
+**Structured exploration.** During the random phase, each random action is drawn as follows and then held for 5–15 steps (0.25–0.75 s at 50 ms per step):
+
+| Action axis | SAC baseline (shared fixes) | SAC + extension |
+| --- | --- | --- |
+| Throttle/brake | Uniform in [−1, 1]: brakes half the time | Uniform in [−0.2, 1]: throttle on about 83% of draws, braking only light |
+| Steering | Uniform in [−1, 1] (up to ±270°) | Uniform in [−0.5, 0.5]: holding full lock for several steps mostly spins the car |
+| New action drawn | Every step | Every 5–15 steps |
+
+Once the policy takes over, it chooses a new action every step in both conditions. A run resumed from a saved model skips the random phase (`start_steps` is set to 0), so this part has no effect there.
+
+**Observation normalization.** Each input is mapped to roughly [−1, 1] as `(s − center) / scale` before the first layer of the policy and of both critics. The constants are fixed by hand from the known range of each input, not estimated from data:
+
+| Input | Center | Scale | Note |
+| --- | --- | --- | --- |
+| Lap progress, previous lap progress | 0.5 | 0.5 | |
+| Speed (km/h) | 90 | 90 | Half of `max_speed` |
+| World x, y, z (m) | 0 | 1,000 | Silverstone 1967 lies within about ±1,000 m (the observation bound is ±2,000) |
+| Lap-invalid flag | 0.5 | 0.5 | |
+| Lap count | 1.5 | 0.5 | |
+| Heading error (rad) | π/2 | π/2 | |
+| Distance from the reference path (m) | 10 | 10 | Normal values are 0–20 m; the 0–500 bound would squash them toward −1 |
+
+The constants are stored inside the model as buffers, so `model.pt` carries them and `evaluate.py` or a resumed run applies the same normalization automatically. Models saved before this change have no such buffers and still run without normalization.
 
 | Component | SAC baseline (shared fixes) | SAC + extension |
 | --- | --- | --- |
-| Observation | 10 values | (To be added) |
-| Policy network | MLP 10 → 256 → 256 | (To be added) |
-| Critic networks | Two MLPs 12 → 256 → 256 → 1 | (To be added) |
-| Other components | None | (To be added) |
-| Parameters | ~208,000 | (To be added) |
+| Observation | 10 raw values | The same 10 values, normalized inside each network |
+| Policy network | MLP 10 → 256 → 256, squashed Gaussian | Same |
+| Critic networks | Two MLPs 12 → 256 → 256 → 1 | Same, on normalized observations |
+| Random phase | Uniform actions, new one every step | Biased actions, each held for 5–15 steps |
+| Trainable parameters | ~208,000 | ~208,000 (the normalization constants are fixed buffers, not trained) |
 
 ### 3.3 Implementation
 
 | Item | Details |
 | --- | --- |
-| Files added or changed | (To be added) |
-| How to turn it on | (To be added) |
-| Extra hyperparameters | (To be added) |
-| Extra compute | (To be added: time per step or per update, compared with the baseline) |
+| Files changed | `standalone/sac/core.py`: optional `(center, scale)` buffers in the actor and both critics, applied in `forward`. `standalone/sac/sac.py`: `_sample_explore_action` (biased, held random actions) and the new options of `SacAgent`. `standalone/sac/ac_environment.py`: `obs_norm_center` and `obs_norm_scale`. `standalone/main.py`: the settings below. Changed lines are marked `[CI3 change]`, with the old code kept as comments. |
+| How to turn it on | In `HYPERPARAMS` in `main.py`: `explore_throttle_range=(-0.2, 1.0)`, `explore_steer_range=(-0.5, 0.5)`, `explore_action_repeat=(5, 15)`, `normalize_obs=True` (the current settings) |
+| How to turn it off (baseline) | `explore_throttle_range=(-1.0, 1.0)`, `explore_steer_range=(-1.0, 1.0)`, `explore_action_repeat=(1, 1)`, `normalize_obs=False`, which reproduce the old uniform sampling and raw inputs. The shared fixes stay on. |
+| Extra hyperparameters | The two exploration ranges, the hold length (5–15 steps), and the normalization constants above. `policy_action_repeat` stays at 1. |
+| Extra compute | No extra trainable parameters; normalization adds one subtraction and one division per input. (To be added: measured time per step and per update, from the new `StepTime` and `UpdateTime` log columns) |
 
 ### 3.4 Evidence That It Runs
 
-(To be added: learning curve, driving trace, or log excerpt from a training run of the extension, with a link to its log)
+(To be added: learning curve, driving trace, or log excerpt from a training run of the extension, with a link to its log. The new `RandomFrac` and `EpAvgSpeed` columns show the random phase directly.)
 
 ## 4. Comparison with the Baseline
 
