@@ -22,18 +22,6 @@ We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implem
 
 The full Check-In 2 write-up (training runs, log checks, and failure analysis of the original baseline) is in [check-in-2.md](check-in-2.md).
 
-## Progress Video
-
-**Link:** (To be added)
-
-| Time | Content |
-| --- | --- |
-| 0:00–0:30 | The problem left at Check-In 2 and our hypothesis |
-| 0:30–1:30 | The extension and how it plugs into SAC |
-| 1:30–3:30 | The car driving in the game, and the comparison with the baseline |
-| 3:30–4:30 | Ablation result |
-| 4:30–5:00 | Where the extension still fails, and limitations |
-
 ## 1. Project Overview
 
 ### 1.1 Goal
