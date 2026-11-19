@@ -448,16 +448,6 @@ Watching the runs, we saw why so many episodes end at the 12.5% corner: a wall j
 6. Look at the 12.5% corner in detail: speed and steering on approach, and whether a look-ahead input would help.
 7. Revise the reward for every condition: a larger off-track (grass) penalty, a cost for hitting walls, and a cost for reversing unless it is needed to recover.
 
-## Milestones
-
-| Stage | Deliverable | Deadline |
-| --- | --- | --- |
-| Check-In 2 | Working SAC baseline, training results, failure analysis ([check-in-2.md](check-in-2.md)) | 10/28/2026 |
-| Check-In 3 | Advanced extension, comparison with the baseline, ablation, failure analysis, progress video | (To be added) |
-| Stage 1 | First completed lap, then a reliable completion rate | TBD |
-| Stage 2 (stretch) | Full timed laps compared with the built-in AI's lap re-recorded on our tires | TBD |
-| Final evaluation | Frozen test results, uncertainty, failure analysis, limitations | TBD |
-
 ## AI Disclosure
 
-Claude (Anthropic) was used to draft and edit the README and its structure, to write the analysis and plotting scripts and `evaluate.py`, to analyze the training logs, and to suggest debugging ideas and code fixes. All results come from our own training runs, and the numbers and figures in this README were checked against the logs in `logs/`.
+Claude (Anthropic) was used to edit the README and its structure, to help the analysis and plotting scripts and `evaluate.py`, and to suggest debugging ideas and code fixes. All results come from our own training runs, and the numbers and figures in this README were checked against the logs in `logs/`.
