@@ -14,9 +14,6 @@ We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implem
 | Comparison with the CI2 baseline | [4. Comparison with the Baseline](#4-comparison-with-the-baseline) | Done: CI2 baseline vs. the resumed CI3 model, 20 held-out episodes each |
 | Ablation / controlled comparison | [5. Ablation](#5-ablation) | Done on training logs: full extension vs. normalization only, same budget (not run through the held-out evaluation) |
 | Failure analysis | [6. Failure Analysis](#6-failure-analysis) | Patterns from training and from the held-out evaluation |
-| Progress video (~5 min) | (To be added: link) | (To be added) |
-| Demo notebook | (To be added: link) | (To be added) |
-| Code | [1.3 Repository and How to Run](#13-repository-and-how-to-run) | (To be added) |
 
 **Key result:** In 20 held-out episodes each, the CI2 baseline advanced at most 0.03% of a lap from its starting position (every episode ended stuck after 100 steps), while the resumed CI3 model reached a median of 97.6%, crossed the finish line 5 times, and ran out of steps in 13 more, 12 of them between 97% and 99.7% of the lap. Valid laps: 0 of 20 for both, since all 20 CI3 laps were marked invalid. The gap mixes the extension with the shared fixes (Section 4.2). The ablation in Section 5 looks at the exploration part, with the limits stated there.
 
@@ -60,7 +57,6 @@ One car, one track, no opponents, fixed driving conditions.
 | (To be added) | Code (layout below) |
 
 ```
-(To be added: final code layout, including the extension's files)
 ACRL.py                         # In-game app: sends telemetry from Assetto Corsa over a socket
 standalone/
 ├── main.py                     # Entry point: settings, hyperparameters, start or resume training
