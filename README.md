@@ -4,7 +4,7 @@ Semester Project for DSAN 6600: Deep Learning and Neural Networks
 
 We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implementation for Assetto Corsa, to train an agent that can drive a lap of a race track on its own. If it gets there, our next target is the lap time set by Assetto Corsa's built-in AI on the same car and track.
 
-**Status (Check-In 3):** We added a data-centric extension to SAC (structured exploration and observation normalization) together with a set of bug fixes, and trained it for 140,541 steps (one seed, a first run and a resumed continuation). In held-out evaluation with the deterministic policy, the Check-In 2 model still does not move, while the CI3 model drives at about 73 km/h on average and gets past 97% of the lap in 16 of 20 episodes; it crossed the finish line in 5 of 20 episodes. None of those laps counts for Stage 1 yet, because the game marked every one invalid (the car left the track somewhere on the lap). An ablation run with normalization only shows, from the training logs, that structured exploration is what gets the car moving in the random phase.
+**Status (Check-In 3):** We added a data-centric extension to SAC (structured exploration and observation normalization) together with a set of bug fixes, and trained it for 140,541 steps (one seed, a first run and a resumed continuation). In held-out evaluation with the deterministic policy, the Check-In 2 model still does not move, while the CI3 model drives at about 73 km/h on average and gets past 97% of the lap in 16 of 20 episodes; it crossed the finish line in 5 of 20 episodes. None of those laps counts for Stage 1 yet, because the game marked every one invalid (the car left the track somewhere on the lap). In an ablation run with normalization only, the random phase barely moved the car, while structured exploration drove it at about 32 km/h; the comparison uses training logs from two machines with different step times, so it is not fully controlled.
 
 ## Check-In 3 at a Glance
 
@@ -18,7 +18,7 @@ We use [ACRL](https://github.com/Jurredr/ACRL), a Soft Actor-Critic (SAC) implem
 | Demo notebook | (To be added: link) | (To be added) |
 | Code | [1.3 Repository and How to Run](#13-repository-and-how-to-run) | (To be added) |
 
-**Key result:** In 20 held-out episodes each, the CI2 baseline never got past 0.03% of the lap (every episode ended stuck after 100 steps), while the resumed CI3 model reached a median of 97.6%, crossed the finish line 5 times, and ran out of steps in 13 more, 12 of them between 97% and 99.7% of the lap. Valid laps: 0 of 20 for both, since all 20 CI3 laps were marked invalid. The gap mixes the extension with the shared fixes (Section 4.2); the ablation in Section 5 isolates the exploration part.
+**Key result:** In 20 held-out episodes each, the CI2 baseline advanced at most 0.03% of a lap from its starting position (every episode ended stuck after 100 steps), while the resumed CI3 model reached a median of 97.6%, crossed the finish line 5 times, and ran out of steps in 13 more, 12 of them between 97% and 99.7% of the lap. Valid laps: 0 of 20 for both, since all 20 CI3 laps were marked invalid. The gap mixes the extension with the shared fixes (Section 4.2). The ablation in Section 5 looks at the exploration part, with the limits stated there.
 
 The full Check-In 2 write-up (training runs, log checks, and failure analysis of the original baseline) is in [check-in-2.md](check-in-2.md).
 
@@ -95,9 +95,9 @@ track_data/spline_points.csv    # Reference path (from upstream ACRL)
 | **CI2 baseline** | `reward_check_2_resume` | The SAC model saved at Check-In 2, trained with the Check-In 2 code and the revised reward (CI2 Section 3.1) | Section 4: the baseline the rubric asks us to compare against |
 | **CI3, first run** | `ci3_track_start` | SAC + extension + shared fixes, trained from scratch for 39,418 steps in one go (seed 0) | Section 5 |
 | **CI3, resumed** | `ci3_track_start_resume` | The first run continued to 140,541 steps in total | Section 4 |
-| **CI3, normalization only** | `ci3_norm_only` (to be trained) | Same as the first run, but with uniform random actions drawn every step: only the observation normalization of the extension | Section 5 |
+| **CI3, normalization only** | `ci3_norm_only` | Same as the first run, but with uniform random actions drawn every step: only the observation normalization of the extension | Section 5 |
 
-Section 4 compares the CI2 baseline with the resumed CI3 model. That difference mixes the extension with the shared fixes and the other changes since Check-In 2 (Section 4.2), so it shows how far the project moved, not what the extension alone did. Section 5 isolates one part of the extension: the first CI3 run and the normalization-only run differ only in how random actions are drawn.
+Section 4 compares the CI2 baseline with the resumed CI3 model. That difference mixes the extension with the shared fixes and the other changes since Check-In 2 (Section 4.2), so it shows how far the project moved, not what the extension alone did. Section 5 looks at one part of the extension: the first CI3 run and the normalization-only run differ in how random actions are drawn, and also in the machine they ran on.
 
 ### 2.2 Shared Setup
 
@@ -336,17 +336,17 @@ So a difference in Section 4.3 measures the combined effect of all these changes
 
 **What the numbers show.**
 
-- **CI2 baseline.** The car creeps at about 0.8 km/h and every episode ends stuck after exactly 100 steps, 0.03% into the lap. This is the standstill behavior seen at Check-In 2 ([CI2 4.1](check-in-2.md#41-the-policy-learned-to-stand-still)), now confirmed outside training.
-- **CI3, resumed.** The car drives the whole lap at racing speed (median 73 km/h, top speeds of 125–153 km/h). It got past 97% of the lap in 16 of 20 episodes. It crossed the line in 5; 13 ran out of steps, 12 of them 15–145 m short of the line and one at 83%; 2 ended stuck at 69% and 94%. The episodes that crossed took 3,946–3,998 steps, about 4 minutes of driving at ~60 ms per step, against 1:25 for the built-in AI.
+- **CI2 baseline.** The car creeps at about 0.8 km/h and every episode ends stuck after exactly 100 steps, having advanced at most 0.03% of a lap from its starting position. This is the standstill behavior seen at Check-In 2 ([CI2 4.1](check-in-2.md#41-the-policy-learned-to-stand-still)), now confirmed outside training.
+- **CI3, resumed.** The car drives the whole lap at racing speed (median 73 km/h, top speeds of 125–153 km/h). It got past 97% of the lap in 16 of 20 episodes. It crossed the line in 5; 13 ran out of steps, 12 of them 15–145 m short of the line and one at 83%; 2 ended stuck at 69% and 94%. The episodes that crossed took 3,946–3,998 steps, about 4 minutes at ~60 ms per step. This is not comparable with the built-in AI's 1:25: our laps start from a standstill before the line, use different tires, and were invalid.
 - **Why no valid lap.** All 20 CI3 laps were marked invalid by the game at some point. `evaluate.py` records whether this happened, not where, so we cannot yet say which part of the track causes it. The training analysis (Section 6.1) showed the long drives running 20–40 m from the reference line, which suggests the car leaves the track on at least one section.
-- **The deterministic policy is far better than the training logs suggest.** During training the same model's episodes stalled at a median of 12.6% of the lap; with the mean action it gets past 97%. Training episodes sample actions with a fixed entropy weight (α = 0.2), and that added noise seems to be what makes the car crash at the 12.5% corner. This is a hypothesis; Section 6.4 lists what follows from it.
+- **The final deterministic policy went much further than the training episodes.** Episodes of the resumed training run had a median farthest progress of 12.6%; the final checkpoint, evaluated with the mean action, got past 97% in most episodes. The two numbers are not a like-for-like comparison: the training figure comes from many episodes while the weights were still changing, and those episodes sample actions with a fixed entropy weight (α = 0.2). Both a more mature final policy and the absence of sampling noise may contribute. Separating them would need the same final checkpoint evaluated with sampled and with mean actions.
 
 ### 4.4 What Improved, What Got Worse, and Why
 
-- **Improved:** Everything about driving. Median progress per episode went from 0.03% to 97.6% of the lap, average speed from 0.8 to 73 km/h, and the car reached the finish line for the first time.
+- **Improved:** Median progress per episode went from 0.03% to 97.6% of the lap, median average speed from 0.8 to 73 km/h, and the car crossed the finish line for the first time (5 of 20 episodes).
 - **Worse or unchanged:** Valid laps stay at 0. The CI3 model drives off the track somewhere on every lap, and the 4,000-step limit now ends most episodes just before the line.
 - **Why:** The CI3 model differs from the CI2 baseline in the extension, the shared fixes, the stuck penalty, the update timing, and the training schedule (Section 4.2), so this comparison cannot say which change mattered most. Section 5 tests one of them, structured exploration. The large gap between the CI2 and CI3 models is consistent with the CI2 diagnosis: once the replay buffer contains real driving and the update pauses no longer interrupt control, SAC learns to drive.
-- **How sure we are:** One training seed per model and 20 evaluation episodes each. The difference (0.03% vs. 97.6% median progress, with no overlap between any two episodes) is far larger than the spread between episodes, so the improvement itself is not in doubt; what caused it is.
+- **How sure we are:** One training seed per model and 20 evaluation episodes each. The difference (0.03% vs. 97.6% median progress, with no overlap between any two episodes) is far larger than the spread between episodes, so the difference between these two checkpoints is clear. Twenty evaluation episodes do not stand in for more training seeds, though, and what caused the difference is not settled.
 
 ## 5. Ablation
 
@@ -359,28 +359,29 @@ A controlled comparison of one part of the extension: does structured exploratio
 | Everything else | Same code, reward, shared fixes, seed (0), and budget (39,418 steps, from scratch, in one go) | Same, but trained on a different machine (see below) |
 | `main.py` | `EXTENSION_MODE = "full"` | `EXTENSION_MODE = "norm_only"`, `MAX_TOTAL_STEPS = 39418` |
 
-`MAX_TOTAL_STEPS` ended the normalization-only run after episode 22, at 39,437 steps (log: [progress.txt](logs/ci3_norm_only/progress.txt)). Both runs used the same environment settings. They ran on different machines, though: the mean step time was about 80 ms for `ci3_track_start` and 62 ms for `ci3_norm_only`, so the same number of steps meant about 53 minutes of driving for the full extension and about 41 minutes for the normalization-only run.
+`MAX_TOTAL_STEPS` ended the normalization-only run after episode 22, at 39,437 steps (log: [progress.txt](logs/ci3_norm_only/progress.txt)). Both runs used the same environment settings, but they ran on different machines: the mean step time was about 80 ms for `ci3_track_start` and 62 ms for `ci3_norm_only`. That changes more than the total driving time (about 53 vs. 41 minutes for the same number of steps): it also changes how long each held random action lasts in seconds, how much progress reward one step can earn, and how many seconds the 100-step stuck rule takes. This is therefore an exploration ablation with a step-time confound, not a fully controlled comparison. The mixed episodes, where the policy takes over partway, are left out of both the random-only and the policy-only rows.
 
 **Expected result (stated before the run).** The normalization-only run behaves like the Check-In 2 random phase at the start (slow, little progress) and reaches less progress after the same budget.
 
 | Metric (training log) | CI3, first run (full extension) | CI3, normalization only |
 | --- | --- | --- |
-| Random-phase episodes | 1–16 (+60 steps of 17) | 1–2 (+ most of 3) |
-| Random phase: median speed / farthest progress | 31.6 km/h / 13.1% | 2.7 km/h / 5.8% |
-| Random phase: how episodes ended | 14 stuck, 2 wrong way | 2 step limit, 1 stuck |
-| Policy phase: episodes | 29 | 19 |
-| Policy phase: median speed | 36.6 km/h | 23.7 km/h |
-| Policy phase: median farthest progress | 12.4% | 11.6% |
-| Policy phase: episodes reaching 12% of the lap | 17 of 29 | 6 of 19 |
+| Episodes with random actions only | 1–16 | 1–2 |
+| Mixed episode (random, then policy) | 17 (60 random steps) | 3 (2,001 random + 554 policy steps) |
+| Random-only episodes: median speed / farthest progress | 31.6 km/h / 13.1% | 2.7 km/h / 3.7% |
+| Random-only episodes: how they ended | 14 stuck, 2 wrong way | 2 step limit |
+| Policy-only episodes | 18–45 (28) | 4–22 (19) |
+| Policy-only episodes: median speed | 34.0 km/h | 23.7 km/h |
+| Policy-only episodes: median farthest progress | 12.4% | 11.6% |
+| Policy-only episodes reaching 12% of the lap | 16 of 28 | 6 of 19 |
 | Farthest progress in the run | 28.5% | 23.4% |
 
 **Interpretation (training logs).**
 
-- **Structured exploration changes the data, as intended.** With uniform random actions, the car crept at 2.7 km/h through the random phase. The speed hovered around the 2 km/h stuck threshold, so the first two episodes ran the full 4,000 steps without ending. With the extension, the random phase drove at 31.6 km/h and reached 13% of the lap. The replay buffer of the normalization-only run therefore starts with almost no driving, as at Check-In 2.
-- **SAC recovers from the poor start, but more slowly.** Once the policy took over, the normalization-only run also learned to drive and reached the same 12.5% corner. Its median speed stayed lower (23.7 vs. 36.6 km/h), fewer of its episodes reached the corner, and its best episode got less far.
+- **With structured exploration, the random phase drove; without it, it barely did.** With uniform random actions, the car crept at 2.7 km/h and got at most 3.7% of the way round. The speed hovered around the 2 km/h stuck threshold, so both random-only episodes ran the full 4,000 steps. With the extension, the random-only episodes averaged 31.6 km/h and reached 13% of the lap. The replay buffer of the normalization-only run therefore starts with very little driving, as at Check-In 2. The step-time difference is unlikely to explain a gap this large, but it is part of it.
+- **After the policy took over, the gap was smaller.** The normalization-only run also learned to drive and reached the same 12.5% corner. Its median speed stayed lower (23.7 vs. 34.0 km/h), fewer of its episodes reached the corner, and its best episode got less far.
 - **The gap is smaller than the random phase suggests,** and the step-time difference above favors the full extension by about 12 minutes of driving, so part of the policy-phase gap may come from that rather than from exploration.
 
-**Limits.** This comparison uses training episodes only; we did not have time to run the two models through `evaluate.py`. Section 4.3 shows that training episodes can understate a policy a lot (12.6% vs. 97.6% median progress for the same model), so the policy-phase numbers above say how the two runs trained, not how well the final policies drive. The random-phase numbers do not have this problem, since no policy is involved there. One seed per condition, two machines, and the effect of normalization on its own (`EXTENSION_MODE = "off"`) is not tested.
+**Limits.** This comparison uses training episodes only; we did not have time to run the two models through `evaluate.py`. Section 4.3 shows that training episodes can look very different from a held-out evaluation of the final checkpoint (12.6% vs. 97.6% median farthest progress for the resumed run), so the policy-only numbers above say how the two runs trained, not how well their final policies drive. The random-phase numbers do not have this problem, since no policy is involved there. One seed per condition, two machines with different step times, and the effect of normalization on its own (`EXTENSION_MODE = "off"`) is not tested. What this ablation supports is narrower than "exploration helps": with structured exploration we observed much faster early driving, and somewhat faster driving later in training.
 
 ## 6. Failure Analysis
 
@@ -424,10 +425,10 @@ Watching the runs, we saw why so many episodes end at the 12.5% corner: a wall j
 
 ### 6.4 Implications
 
-- **The 4,000-step limit now ends most evaluation episodes just short of the line.** At ~60 ms per step, 4,000 steps is 4 minutes, and the CI3 model needs about that long for a lap; 13 of 20 evaluation episodes ran out of steps, 12 of them at 97–99.7%. Raising the limit (or setting it in seconds) for every condition would turn most of these into finish-line crossings, but not into valid laps, since every lap was already invalid.
+- **The 4,000-step limit now ends most evaluation episodes just short of the line.** At ~60 ms per step, 4,000 steps is 4 minutes, and the CI3 model needs about that long for a lap; 13 of 20 evaluation episodes ran out of steps, 12 of them at 97–99.7%. Raising the limit (or setting it in seconds) for every condition, and running a longer evaluation, would show how many of these could also cross the line. They would still not be valid laps, since every lap was already invalid.
 - **The 50 ms control interval was not reached.** The per-episode mean step time was about 80 ms and 60 ms in the two runs, probably because reading the game state takes longer than 50 ms on the machines used. The interval is a floor, not a fixed value, so the two runs saw different amounts of driving per step. The comparison runs should use the same machine, and the interval should be set at or above the step time actually achieved.
 - **The furthest progress comes off the track.** The reward charges a one-time −5 when the lap becomes invalid and then halves positive rewards, which is small next to what an episode earns by driving on. A valid Stage 1 lap needs the car to stay on track, so the evaluation counts these laps as failures. Logging the lap-invalid flag per episode, and a larger or repeated off-track penalty, would make this visible and costly. (To be added: decision, applied to every condition)
-- **Training episodes understate the policy.** The training logs made the 12.5% corner look like a wall the agent could not pass, but the deterministic policy gets through it in almost every evaluation episode. With a fixed α = 0.2, the sampled actions are noisy enough to crash where the mean action does not. Two things follow: judge the agent by held-out evaluation, not by training episodes, and consider letting SAC tune α automatically so the noise shrinks as the policy improves.
+- **Training episodes can understate the final policy.** The training logs made the 12.5% corner look like a wall the agent could not pass, but the final checkpoint with the mean action gets through it in almost every evaluation episode. Whether sampling noise (fixed α = 0.2) or a still-improving policy explains most of this is not yet known; evaluating the final checkpoint with sampled actions would tell. Either way, the agent should be judged by held-out evaluation, and automatic tuning of α is worth considering as a way to adjust the amount of exploration.
 - **The main remaining problem is staying on the track.** With the car now able to drive the whole lap, Stage 1 depends on the lap staying valid. That needs the off-track changes above, and an `evaluate.py` that records where the lap became invalid.
 
 ### 6.5 Remaining Limitations
@@ -441,10 +442,11 @@ Watching the runs, we saw why so many episodes end at the 12.5% corner: a wall j
 
 1. Evaluate the first CI3 run and the normalization-only run with `evaluate.py`, so the ablation is judged on held-out episodes too (Section 5).
 2. Make `evaluate.py` record where the lap becomes invalid, and log the invalid flag during training.
-3. Raise the step limit (or set it in seconds) and fix the control interval to a value every machine reaches, for all conditions.
-4. Add a progress-based stall rule so episodes stuck against a wall end early (Section 6.2).
-5. Look at the 12.5% corner in detail: speed and steering on approach, and whether a look-ahead input would help.
-6. Revise the reward for every condition: a larger off-track (grass) penalty, a cost for hitting walls, and a cost for reversing unless it is needed to recover.
+3. Evaluate the final CI3 checkpoint with sampled actions as well as mean actions, to see how much of the training/evaluation gap comes from sampling noise.
+4. Raise the step limit (or set it in seconds) and fix the control interval to a value every machine reaches, for all conditions.
+5. Add a progress-based stall rule so episodes stuck against a wall end early (Section 6.2).
+6. Look at the 12.5% corner in detail: speed and steering on approach, and whether a look-ahead input would help.
+7. Revise the reward for every condition: a larger off-track (grass) penalty, a cost for hitting walls, and a cost for reversing unless it is needed to recover.
 
 ## Milestones
 
